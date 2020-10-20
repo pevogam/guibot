@@ -62,6 +62,7 @@ from guibot.errors import *
 
 # Target data paths
 file_resolver = FileResolver()
+#file_resolver.add_path('guibot/docs/examples/images/')
 file_resolver.add_path('images/')
 
 
@@ -318,7 +319,7 @@ hyperparams = {}
 hyperparams["epochs"] = 1
 hyperparams["batch_size"] = 16
 hyperparams["validation_split"] = 0.2
-hyperparams["cpu_cores"] = multiprocessing.cpu_count()
+hyperparams["cpu_cores"] = 4
 hyperparams["log_interval"] = 10
 hyperparams["save_interval"] = 100
 hyperparams["learning_rate"] = 0.005
@@ -326,6 +327,7 @@ hyperparams["sgd_momentum"] = 0.9
 hyperparams["weight_decay"] = 0.0005
 hyperparams["step_size"] = 3
 hyperparams["gamma"] = 0.1
+#hyperparams["dataset_source"] = "guibot/docs/examples/images/buttons"
 hyperparams["dataset_source"] = "images/buttons"
 hyperparams["model_checkpoint"] = "checkpoint.pth"
 
@@ -354,10 +356,10 @@ finder = DeepFinder(synchronize=False)
 # Use these CV parameters to configure the model
 #finder.params["find"]["similarity"].value = 0.8
 # have to set the number of classes if reusing a pretrained model (model param)
-#finder.params["deep"]["classes"].value = len(dataset.classes)
+finder.params["deep"]["classes"].value = len(dataset.classes)
 #finder.params["deep"]["device"].value = "auto"
 #finder.params["deep"]["arch"].value = "fasterrcnn_resnet50_fpn"
-#finder.params["deep"]["model"].value = "checkpoint.pth"
+finder.params["deep"]["model"].value = "model_cX.pth"
 # Synchronize at this stage to take into account all configuration
 finder.synchronize()
 # A bit awkward but the only current way to get the model's device
