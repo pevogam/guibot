@@ -12,16 +12,18 @@ jobs:
   original-travis-ci-job:
     name: Linux ${{ matrix.install_variant }} with Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
+    #runs-on: ${{ matrix.os }}
     env:
       DISPLAY: ':99.0'
 
     strategy:
       matrix:
         python-version: [3.7, 3.8, 3.9, 3.10.8, 3.11, 3.12]
+        # os: [ubuntu-latest, macos-latest, windows-latest]
         install_variant: ["pip"]
         include:
         - python-version: 3.10.8
-          install_variant: "rpm.fedora.34"
+          install_variant: "rpm.fedora.36"
         - python-version: 3.7
           install_variant: "deb.ubuntu.focal"
       fail-fast: false
