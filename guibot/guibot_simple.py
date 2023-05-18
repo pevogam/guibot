@@ -44,7 +44,16 @@ buttons = namedtuple('Buttons', ["mouse", "key", "mod"])
 def initialize():
     """Initialize the simple API."""
     global guibot
-    guibot = GuiBot()
+
+    from guibot.controller import VNCDoToolController
+    dc = VNCDoToolController(synchronize=False)
+    # starting from 5900, i.e. :0 == 5900
+    dc.params["vncdotool"]["vnc_port"] = 1
+    dc.params["vncdotool"]["vnc_delay"] = 0.02
+    dc.params["vncdotool"]["vnc_password"] = "heroes"
+    dc.synchronize_backend()
+    guibot = GuiBot(dc=dc)
+
     global last_match
     last_match = guibot.last_match
 
