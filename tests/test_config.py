@@ -20,6 +20,34 @@ from guibot.config import GlobalConfig, TemporaryConfig
 
 class ConfigTest(unittest.TestCase):
 
+    def test_retake_settings(self) -> None:
+        """Retaking is opt-in and its settings support temporary configuration."""
+        self.assertFalse(GlobalConfig.retake_images)
+        self.assertEqual(GlobalConfig.retake_similarity, 0.69)
+        self.assertEqual(GlobalConfig.retake_similarity_step, 0.033)
+        with TemporaryConfig() as cfg:
+            cfg.retake_images = True
+            cfg.retake_similarity = 0.6
+            cfg.retake_similarity_step = 0.05
+            self.assertTrue(GlobalConfig.retake_images)
+            self.assertEqual(GlobalConfig.retake_similarity, 0.6)
+            self.assertEqual(GlobalConfig.retake_similarity_step, 0.05)
+            for value in (0, 1, 'yes'):
+                with self.subTest(flag=value):
+                    with self.assertRaises(ValueError):
+                        cfg.retake_images = value
+            for value in (-0.1, 1.1, float('nan'), float('inf')):
+                with self.subTest(similarity=value):
+                    with self.assertRaises(ValueError):
+                        cfg.retake_similarity = value
+            for value in (0, -0.1, 1.1, 1e-100, float('nan'), float('inf')):
+                with self.subTest(step=value):
+                    with self.assertRaises(ValueError):
+                        cfg.retake_similarity_step = value
+        self.assertFalse(GlobalConfig.retake_images)
+        self.assertEqual(GlobalConfig.retake_similarity, 0.69)
+        self.assertEqual(GlobalConfig.retake_similarity_step, 0.033)
+
     def test_temporary_config(self) -> None:
         """Check that using a temporary config has a temporary effect."""
         original_value = GlobalConfig.delay_before_drop

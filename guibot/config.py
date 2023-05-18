@@ -57,6 +57,9 @@ class GlobalConfig(type):
     _screen_autoconnect = True
     _preprocess_special_chars = True
     _save_needle_on_error = True
+    _retake_images = False
+    _retake_similarity = 0.69
+    _retake_similarity_step = 0.033
     _image_logging_level = logging.ERROR
     _image_logging_destination = "imglog"
     _image_logging_step_width = 3
@@ -213,6 +216,65 @@ class GlobalConfig(type):
     #: whether to perform an extra needle dump on matching error
     save_needle_on_error = property(
         fget=save_needle_on_error, fset=save_needle_on_error
+    )
+
+    def retake_images(cls, value: bool = None) -> bool | None:
+        """
+        Get or set automatic image target retaking during normal searches.
+
+        :param value: whether to replace changed image targets with the best similar match
+        :returns: current value if no argument was passed otherwise None
+        :raises: :py:class:`ValueError` if value is not boolean or None
+        """
+        if value is None:
+            return cls._retake_images
+        elif value is True or value is False:
+            cls._retake_images = value
+            return None
+        else:
+            raise ValueError
+
+    #: whether to retake changed image targets during normal searches
+    retake_images = property(fget=retake_images, fset=retake_images)
+
+    def retake_similarity(cls, value: float = None) -> float | None:
+        """
+        Get or set the minimum similarity for retaking an image target.
+
+        :param value: minimum acceptable similarity between zero and one
+        :returns: current value if no argument was passed otherwise None
+        :raises: :py:class:`ValueError` if value is outside zero to one
+        """
+        if value is None:
+            return cls._retake_similarity
+        elif 0.0 <= value <= 1.0:
+            cls._retake_similarity = value
+            return None
+        else:
+            raise ValueError
+
+    #: minimum acceptable similarity for retaking an image target
+    retake_similarity = property(fget=retake_similarity, fset=retake_similarity)
+
+    def retake_similarity_step(cls, value: float = None) -> float | None:
+        """
+        Get or set the similarity decrease between image retaking attempts.
+
+        :param value: positive similarity step, at most one and large enough to lower a threshold
+        :returns: current value if no argument was passed otherwise None
+        :raises: :py:class:`ValueError` if value cannot lower a similarity in zero to one
+        """
+        if value is None:
+            return cls._retake_similarity_step
+        elif 0.0 < value <= 1.0 and 1.0 - value < 1.0:
+            cls._retake_similarity_step = value
+            return None
+        else:
+            raise ValueError
+
+    #: similarity decrease between image retaking attempts
+    retake_similarity_step = property(
+        fget=retake_similarity_step, fset=retake_similarity_step
     )
 
     def image_logging_level(cls, value: int = None) -> int | None:

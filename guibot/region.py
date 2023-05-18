@@ -446,6 +446,11 @@ class Region(object):
                  and zero matches are not allowed
 
         This method is similar the one above but allows for more than one match.
+
+        When :py:attr:`config.GlobalConfig.retake_images` is enabled, a failed
+        image match is retried at decreasing similarities on the same screenshot,
+        down to :py:attr:`config.GlobalConfig.retake_similarity`. The best match
+        at the first successful level refreshes the target file and cache.
         """
         if isinstance(target, str):
             target = self._target_from_string(target)
@@ -461,6 +466,14 @@ class Region(object):
             screen_capture = dc_backend.capture_screen(self)
 
             relative_matches = cv_backend.find(target, screen_capture)
+            if (
+                not relative_matches
+                and GlobalConfig.retake_images
+                and isinstance(target, Image)
+            ):
+                relative_matches = self._retake_target(
+                    target, screen_capture, cv_backend
+                )
             if len(relative_matches) > 0:
                 from .match import Match
 
@@ -513,6 +526,45 @@ class Region(object):
             else:
                 # don't hog the CPU
                 time.sleep(GlobalConfig.rescan_speed_on_find)
+
+    def _retake_target(
+        self, target: Image, screen_capture: Image, cv_backend: Finder
+    ) -> "list[Match]":
+        matcher = (
+            cv_backend.matcher if isinstance(cv_backend, HybridFinder) else cv_backend
+        )
+        cv_similarity = matcher.params["find"]["similarity"]
+        original_similarity = cv_similarity.value
+        if original_similarity <= GlobalConfig.retake_similarity:
+            return []
+
+        matches = []
+        try:
+            while cv_similarity.value > GlobalConfig.retake_similarity:
+                cv_similarity.value = max(
+                    GlobalConfig.retake_similarity,
+                    cv_similarity.value - GlobalConfig.retake_similarity_step,
+                )
+                matches = cv_backend.find(target, screen_capture)
+                if matches:
+                    break
+        finally:
+            cv_similarity.value = original_similarity
+        if not matches:
+            return []
+
+        matches = sorted(matches, key=lambda match: match.similarity, reverse=True)
+        match = matches[0]
+        new_image = screen_capture.pil_image.crop(
+            (match.x, match.y, match.x + match.width, match.y + match.height)
+        )
+        log.info("Retaking %s with similarity %s", target, match.similarity)
+        if target.filename:
+            new_image.save(target.filename, compress_level=GlobalConfig.image_quality)
+            Image._cache[target.filename] = new_image
+        target._pil_image = new_image
+        target._width, target._height = new_image.size
+        return matches
 
     def _target_from_string(self, target_str: str) -> Target:
         # handle some specific target types
