@@ -27,10 +27,13 @@ INTERFACE
 
 """
 
+import os
 import logging
 
+from .errors import *
 from .fileresolver import FileResolver
 from .region import Region
+from .target import Image
 
 
 log = logging.getLogger('guibot')
@@ -77,3 +80,48 @@ class GuiBot(Region):
         :param str directory: path to add
         """
         self.file_resolver.remove_path(directory)
+
+    def find_all(self, target, timeout=10, allow_zero=False,
+                 upper_threshold=0.89, lower_threshold=0.69, similarity_step=0.033):
+        """
+        TODO: Decide about best place for this later on.
+        """
+        if isinstance(target, str):
+            target_name = target
+            target = self._target_from_string(target)
+        else:
+            target_name = target.filename
+        cv_backend = self._determine_cv_backend(target)
+        try:
+            print(cv_backend.matcher.params["find"]["similarity"])
+            cv_similarity = cv_backend.matcher.params["find"]["similarity"]
+        except AttributeError:
+            cv_similarity = cv_backend.params["find"]["similarity"]
+        print(cv_backend.params["find"]["similarity"])
+        cv_similarity.value = upper_threshold
+        while cv_similarity.value >= lower_threshold:
+            log.info(f"Trying {target_name} with similarity {cv_similarity.value}>{lower_threshold}")
+            matches = super().find_all(target, timeout, allow_zero=True)
+            if len(matches) > 0:
+                for i, match in enumerate(matches):
+                    match_image = self.dc_backend.capture_screen(match)
+                    if isinstance(target, Image):
+                        filename = target.filename
+                    else:
+                        logging.warning("Unsupported type of target for the technique "
+                                        "of lowering similarity")
+                        return matches
+                    if i > 0:
+                        filename = filename.replace(".png", "") + f"_{i+1}.png"
+                    if cv_similarity.value < upper_threshold:
+                        logging.info(f"Saving a new {filename} with similarity {cv_similarity.value}")
+                        Image._cache[filename] = match_image._pil_image
+                        filepath = os.path.join("/tmp/guibot", filename)
+                        match_image.save(filepath)
+                return matches
+            else:
+                timeout = 1
+                cv_similarity.value -= similarity_step
+        if allow_zero:
+            return []
+        raise FindError(target)
