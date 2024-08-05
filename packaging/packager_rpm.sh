@@ -34,8 +34,8 @@ dnf -y install xdotool xwd ImageMagick
 # NOTE: PyAutoGUI's scrot dependencies are broken on Fedora 33- so we don't support these
 dnf -y install python3-tkinter scrot
 # TODO: install PyScreeze separately to replace the one PyAutoGUI will install which is incompatible with the current Pillow version
-pip3 install pyscreeze==0.1.28
-pip3 install pyautogui==0.9.53
+pip3 install pyscreeze==0.1.30
+pip3 install pyautogui==0.9.54
 dnf -y install x11vnc
 
 # rpm packaging and installing of current guibot source
