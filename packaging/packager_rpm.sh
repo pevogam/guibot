@@ -18,7 +18,7 @@ dnf -y install python3-numpy python3-opencv
 # text matching
 dnf -y install tesseract tesseract-devel
 dnf -y install gcc-c++
-pip3 install pytesseract==0.3.4 tesserocr==2.5.1
+pip3 install pytesseract==0.3.10 tesserocr==2.7.0
 # deep learning
 pip3 install torch==1.8.1 torchvision==0.9.1
 # screen controlling
