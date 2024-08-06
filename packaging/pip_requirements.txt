@@ -14,8 +14,7 @@ torch==2.2.0; 'generic' not in platform_release and platform_python_implementati
 torchvision==0.17.0 ; 'generic' not in platform_release and platform_python_implementation != "PyPy"
 vncdotool==0.12.0; sys_platform != 'win32' and platform_python_implementation != "PyPy"
 pyautogui==0.9.54; platform_python_implementation != "PyPy"
-# NOTE: These declared version of Pillow has issues with the latest Pyscreeze 0.1.30 thus there is a restrain on Pyscreeze installation
-pyscreeze==0.1.30
+# sudo apt install gnome-screenshot
 
 # optional proxy guibot interface deps
 serpent==1.40
