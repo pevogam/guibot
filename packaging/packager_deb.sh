@@ -48,7 +48,7 @@ if [[ -n "$DISABLE_AUTOPY" && "$DISABLE_AUTOPY" == "1" ]]; then
 else
     pip3 install autopy
 fi
-pip3 install vncdotool==0.12.0
+pip3 install vncdotool==1.2.0
 apt-get -y install xdotool x11-apps imagemagick
 # NOTE: Must install tkinter here to use MouseInfo
 apt-get -y install python3-tk
