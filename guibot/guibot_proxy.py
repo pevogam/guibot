@@ -33,10 +33,7 @@ INTERFACE
 import re
 from typing import Any
 
-try:
-    import Pyro5 as pyro
-except ImportError:
-    import Pyro4 as pyro
+import Pyro5 as pyro
 
 from . import errors
 from .guibot import GuiBot
@@ -69,7 +66,7 @@ def register_exception_serialization() -> None:
         for it with some extra setup steps and functions below.
     """
     for exception in [errors.UnsupportedBackendError]:
-        pyro.util.SerializerBase.register_class_to_dict(
+        pyro.serializers.SerializerBase.register_class_to_dict(
             exception, serialize_custom_error
         )
 
