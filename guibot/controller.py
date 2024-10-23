@@ -30,6 +30,8 @@ import re
 import time
 import logging
 import numpy
+import atexit
+
 import PIL.Image
 from tempfile import NamedTemporaryFile
 
@@ -873,15 +875,6 @@ class VNCDoToolController(Controller):
         if synchronize:
             self.__synchronize_backend(reset=False)
 
-    def __del__(self) -> None:
-        """Destroy a DC backend using VNCDoTool via extra API shutdown."""
-        # TODO: for official support for VNCDoTool 1.1+ add this destructor but
-        # shuting down the Twisted API on destruction only makes PASS tests not
-        # hang with CANCEL, FAIL, and other results hanging
-        from vncdotool import api
-
-        api.shutdown()
-
     def __configure_backend(
         self, backend: str = None, category: str = "vncdotool", reset: bool = False
     ) -> None:
@@ -945,6 +938,7 @@ class VNCDoToolController(Controller):
         )
         # for special characters preprocessing for the vncdotool
         self._backend_obj.factory.force_caps = True
+        atexit.register(api.shutdown)
 
         # additional logging for vncdotool available so let's make use of it
         logging.getLogger("vncdotool.client").setLevel(10)
