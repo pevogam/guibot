@@ -938,7 +938,7 @@ class VNCDoToolController(Controller):
         )
         # for special characters preprocessing for the vncdotool
         self._backend_obj.factory.force_caps = True
-        atexit.register(api.shutdown)
+        #atexit.register(api.shutdown)
 
         # additional logging for vncdotool available so let's make use of it
         logging.getLogger("vncdotool.client").setLevel(10)
