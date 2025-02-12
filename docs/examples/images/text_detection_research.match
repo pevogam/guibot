@@ -1,0 +1,84 @@
+# IMAGE MATCH DATA
+[type]
+backend = cv
+
+[find]
+backend = text
+similarity = <value='0.75' min='0.0' max='1.0' delta='10.0' tolerance='1.0' fixed='True' enumerated='False'>
+
+[text]
+backend = mixed
+datapath = <value='../misc' min='None' max='None' delta='10.0' tolerance='1.0' fixed='True' enumerated='False'>
+
+[tdetect]
+backend = pytesseract
+language = <value='eng' min='None' max='None' delta='10.0' tolerance='1.0' fixed='True' enumerated='False'>
+char_whitelist = <value=' 0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ' min='None' max='None' delta='10.0' tolerance='1.0' fixed='True' enumerated='False'>
+oem = <value='3' min='0' max='3' delta='10.0' tolerance='1.0' fixed='True' enumerated='True'>
+psmode = <value='3' min='0' max='13' delta='10.0' tolerance='1.0' fixed='True' enumerated='True'>
+extra_configs = <value='' min='None' max='None' delta='10.0' tolerance='1.0' fixed='True' enumerated='False'>
+binarize_detection = <value='True' min='None' max='None' delta='10.0' tolerance='1.0' fixed='True' enumerated='False'>
+segment_line_max = <value='10' min='1' max='None' delta='1.0' tolerance='1.0' fixed='True' enumerated='False'>
+recursion_height = <value='0.3' min='0.0' max='1.0' delta='0.01' tolerance='1.0' fixed='True' enumerated='False'>
+recursion_width = <value='0.3' min='0.0' max='1.0' delta='0.01' tolerance='1.0' fixed='True' enumerated='False'>
+
+[ocr]
+backend = pytesseract
+language = <value='eng' min='None' max='None' delta='10.0' tolerance='1.0' fixed='True' enumerated='False'>
+char_whitelist = <value=' 0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ' min='None' max='None' delta='10.0' tolerance='1.0' fixed='True' enumerated='False'>
+oem = <value='3' min='0' max='3' delta='10.0' tolerance='1.0' fixed='True' enumerated='True'>
+psmode = <value='3' min='0' max='13' delta='10.0' tolerance='1.0' fixed='True' enumerated='True'>
+extra_configs = <value='' min='None' max='None' delta='10.0' tolerance='1.0' fixed='True' enumerated='False'>
+component_level = <value='1' min='1' max='1' delta='10.0' tolerance='1.0' fixed='True' enumerated='True'>
+binarize_text = <value='False' min='None' max='None' delta='10.0' tolerance='1.0' fixed='True' enumerated='False'>
+min_confidence = <value='0' min='0' max='100' delta='25.0' tolerance='1.0' fixed='True' enumerated='False'>
+zoom_factor = <value='1.0' min='1.0' max='100.0' delta='25.0' tolerance='1.0' fixed='True' enumerated='False'>
+border_size = <value='3' min='0' max='100' delta='25.0' tolerance='1.0' fixed='True' enumerated='False'>
+erode_dilate = <value='3' min='0' max='3' delta='10.0' tolerance='1.0' fixed='True' enumerated='True'>
+ed_kernel_type = <value='0' min='0' max='2' delta='10.0' tolerance='1.0' fixed='True' enumerated='True'>
+ed_kernel_width = <value='1' min='1' max='1000' delta='250.0' tolerance='2.0' fixed='True' enumerated='False'>
+ed_kernel_height = <value='1' min='1' max='1000' delta='250.0' tolerance='2.0' fixed='True' enumerated='False'>
+distance_transform = <value='False' min='None' max='None' delta='10.0' tolerance='1.0' fixed='True' enumerated='False'>
+dt_distance_type = <value='1' min='1' max='3' delta='10.0' tolerance='1.0' fixed='True' enumerated='True'>
+dt_mask_size = <value='3' min='0' max='5' delta='8.0' tolerance='2.0' fixed='True' enumerated='False'>
+
+[contour]
+backend = mixed
+retrievalMode = <value='2' min='1' max='4' delta='10.0' tolerance='1.0' fixed='True' enumerated='True'>
+approxMethod = <value='2' min='1' max='4' delta='10.0' tolerance='1.0' fixed='True' enumerated='True'>
+minArea = <value='0' min='0' max='None' delta='100.0' tolerance='1.0' fixed='True' enumerated='False'>
+contoursMatch = <value='1' min='1' max='3' delta='10.0' tolerance='1.0' fixed='True' enumerated='True'>
+
+[threshold]
+backend = adaptive
+blurType = <value='4' min='1' max='4' delta='10.0' tolerance='1.0' fixed='True' enumerated='True'>
+blurKernelSize = <value='5' min='1' max='None' delta='100.0' tolerance='1.0' fixed='True' enumerated='False'>
+blurKernelSigma = <value='0' min='0' max='None' delta='100.0' tolerance='1.0' fixed='True' enumerated='False'>
+thresholdMax = <value='255' min='0' max='255' delta='20.0' tolerance='1.0' fixed='True' enumerated='False'>
+adaptiveMethod = <value='1' min='0' max='1' delta='10.0' tolerance='1.0' fixed='True' enumerated='True'>
+thresholdType = <value='1' min='0' max='1' delta='10.0' tolerance='1.0' fixed='True' enumerated='True'>
+blockSize = <value='11' min='3' max='None' delta='200.0' tolerance='2.0' fixed='True' enumerated='False'>
+constant = <value='2' min='-255' max='255' delta='1.0' tolerance='1.0' fixed='True' enumerated='False'>
+
+[threshold2]
+backend = adaptive
+blurType = <value='4' min='1' max='4' delta='10.0' tolerance='1.0' fixed='True' enumerated='True'>
+blurKernelSize = <value='5' min='1' max='None' delta='100.0' tolerance='1.0' fixed='True' enumerated='False'>
+blurKernelSigma = <value='0' min='0' max='None' delta='100.0' tolerance='1.0' fixed='True' enumerated='False'>
+thresholdMax = <value='255' min='0' max='255' delta='20.0' tolerance='1.0' fixed='True' enumerated='False'>
+adaptiveMethod = <value='1' min='0' max='1' delta='10.0' tolerance='1.0' fixed='True' enumerated='True'>
+thresholdType = <value='1' min='0' max='1' delta='10.0' tolerance='1.0' fixed='True' enumerated='True'>
+blockSize = <value='11' min='3' max='None' delta='200.0' tolerance='2.0' fixed='True' enumerated='False'>
+constant = <value='2' min='-255' max='255' delta='1.0' tolerance='1.0' fixed='True' enumerated='False'>
+
+[threshold3]
+backend = adaptive
+blurType = <value='4' min='1' max='4' delta='10.0' tolerance='1.0' fixed='True' enumerated='True'>
+blurKernelSize = <value='5' min='1' max='None' delta='100.0' tolerance='1.0' fixed='True' enumerated='False'>
+blurKernelSigma = <value='0' min='0' max='None' delta='100.0' tolerance='1.0' fixed='True' enumerated='False'>
+thresholdMax = <value='255' min='0' max='255' delta='20.0' tolerance='1.0' fixed='True' enumerated='False'>
+adaptiveMethod = <value='1' min='0' max='1' delta='10.0' tolerance='1.0' fixed='True' enumerated='True'>
+thresholdType = <value='1' min='0' max='1' delta='10.0' tolerance='1.0' fixed='True' enumerated='True'>
+blockSize = <value='11' min='3' max='None' delta='200.0' tolerance='2.0' fixed='True' enumerated='False'>
+constant = <value='2' min='-255' max='255' delta='1.0' tolerance='1.0' fixed='True' enumerated='False'>
+
