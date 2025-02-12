@@ -82,11 +82,11 @@ elif GlobalConfig.find_backend == "cascade":
     finder = CascadeFinder(synchronize=False)
 elif GlobalConfig.find_backend == "text":
     finder = TextFinder(synchronize=False)
-    #finder.configure(text_detector="contours")
+    finder.configure(text_detector="pytesseract")
     #finder.params["text"]["datapath"].value = "../../misc"
     #finder.params["ocr"]["oem"].value = 0
     #finder.params["tdetect"]["verticalVariance"].value = 5
-    #finder.params["threshold"]["blockSize"].value = 3
+    finder.params["threshold"]["blockSize"].value = 3
 elif GlobalConfig.find_backend == "tempfeat":
     finder = TemplateFeatureFinder(synchronize=False)
     #finder.params["tempfeat"]["front_similarity"].value = 0.5
