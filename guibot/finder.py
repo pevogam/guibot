@@ -2971,19 +2971,10 @@ class TextFinder(ContourFinder):
         if self.params["tdetect"]["binarize_detection"].value:
             detection_img = self._binarize_image(detection_img)
 
-            # remove segment line residue from thresholding text containing boxes (GUI elements)
-            max_segment = self.params["tdetect"]["segment_line_max"].value
-            for i in range(1, max_segment):
-                hline = cv2.getStructuringElement(cv2.MORPH_RECT, (max_segment, i))
-                hlopened = cv2.morphologyEx(
-                    detection_img, cv2.MORPH_OPEN, hline, iterations=1
-                )
-                vline = cv2.getStructuringElement(cv2.MORPH_RECT, (i, max_segment))
-                vlopened = cv2.morphologyEx(
-                    detection_img, cv2.MORPH_OPEN, vline, iterations=1
-                )
-                detection_img -= hlopened
-                detection_img -= vlopened
+            # Remove borders left by thresholded GUI elements before asking
+            # Tesseract to segment the image as document text.
+            segment_size = self.params["tdetect"]["segment_line_max"].value
+            detection_img = self._remove_segment_lines(detection_img, segment_size)
 
         else:
             detection_img = cv2.cvtColor(detection_img, cv2.COLOR_RGB2GRAY)
@@ -3052,6 +3043,57 @@ class TextFinder(ContourFinder):
                 text_regions.append([x, y, w, h])
 
         return text_regions
+
+    @staticmethod
+    def _remove_segment_lines(image: "Matlike", segment_size: int) -> "Matlike":
+        """Remove long horizontal and vertical runs from a binary image.
+
+        The extracted masks are widened by one pixel perpendicular to each
+        line.  This removes short fringe fragments left beside thresholded
+        GUI borders without needlessly extending a mask over nearby text.
+        Combining the masks before using OpenCV's saturating subtraction also
+        prevents uint8 underflow where horizontal and vertical lines cross.
+
+        A segment size of one keeps line removal disabled, matching the
+        configuration default.
+        """
+        import cv2
+
+        if segment_size <= 1:
+            return image
+
+        horizontal_kernel = cv2.getStructuringElement(
+            cv2.MORPH_RECT, (segment_size, 1)
+        )
+        vertical_kernel = cv2.getStructuringElement(
+            cv2.MORPH_RECT, (1, segment_size)
+        )
+        # Opening with the same default anchor twice shifts even-sized
+        # kernels.  Complementary anchors keep the extracted mask aligned.
+        lower_anchor = (segment_size - 1) // 2
+        upper_anchor = segment_size // 2
+        horizontal_lines = cv2.erode(
+            image, horizontal_kernel, anchor=(lower_anchor, 0)
+        )
+        horizontal_lines = cv2.dilate(
+            horizontal_lines, horizontal_kernel, anchor=(upper_anchor, 0)
+        )
+        vertical_lines = cv2.erode(
+            image, vertical_kernel, anchor=(0, lower_anchor)
+        )
+        vertical_lines = cv2.dilate(
+            vertical_lines, vertical_kernel, anchor=(0, upper_anchor)
+        )
+
+        horizontal_smoothing = cv2.getStructuringElement(
+            cv2.MORPH_RECT, (1, 3)
+        )
+        vertical_smoothing = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 1))
+        horizontal_lines = cv2.dilate(horizontal_lines, horizontal_smoothing)
+        vertical_lines = cv2.dilate(vertical_lines, vertical_smoothing)
+
+        line_mask = cv2.bitwise_or(horizontal_lines, vertical_lines)
+        return cv2.subtract(image, line_mask)
 
     def _detect_text_east(self, haystack: "Image") -> list[tuple[int, int, int, int]]:
         # :.. note:: source implementation by Adrian Rosebrock from his post:

@@ -687,6 +687,40 @@ class FinderTest(unittest.TestCase):
                 shutil.rmtree(self.logpath)
                 i += 1
 
+    @unittest.skipIf(os.environ.get('DISABLE_OPENCV', "0") == "1", "OpenCV disabled")
+    def test_text_segment_line_removal(self) -> None:
+        """Test that OCR preprocessing removes GUI lines without uint8 residue."""
+        import numpy
+
+        binary_image = numpy.zeros((40, 40), dtype=numpy.uint8)
+
+        # Long crossing lines and nearby short fragments emulate the rough
+        # edges produced when GUI borders are adaptively thresholded.
+        binary_image[8:10, 2:38] = 255
+        binary_image[2:30, 30:32] = 255
+        binary_image[7, 2:7] = 255
+        binary_image[7, 9:14] = 255
+        binary_image[2:7, 29] = 255
+        binary_image[9:14, 29] = 255
+
+        # A shorter L-shaped glyph must survive a segment-size threshold of 10.
+        binary_image[31:37, 3] = 255
+        binary_image[36, 3:9] = 255
+        original_image = binary_image.copy()
+
+        processed_image = TextFinder._remove_segment_lines(binary_image, 10)
+
+        self.assertFalse(numpy.any(processed_image[7:11, 2:38]))
+        self.assertFalse(numpy.any(processed_image[2:30, 29:33]))
+        numpy.testing.assert_array_equal(
+            processed_image[31:37, 3:9], original_image[31:37, 3:9]
+        )
+        numpy.testing.assert_array_equal(binary_image, original_image)
+        numpy.testing.assert_array_equal(
+            TextFinder._remove_segment_lines(binary_image, 1), original_image
+        )
+        self.assertTrue(numpy.isin(processed_image, [0, 255]).all())
+
     @unittest.skipIf(os.environ.get('DISABLE_OPENCV', "0") == "1" or
                      os.environ.get('DISABLE_OCR', "0") == "1",
                      "Disabled OpenCV or OCR")
