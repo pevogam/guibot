@@ -3505,6 +3505,22 @@ class TextFinder(ContourFinder):
         # myblobs.filter_blobs(325, 2000)
         # blob_count = myblobs.GetNumBlobs()
 
+    def _detect_rectangle_shapes(self, image: "Array") -> list[dict[str, object]]:
+        """Detect geometric and color-based rectangular region proposals.
+
+        This temporarily delegates to the fifth detector in the standalone
+        rectangle experiment.  That detector combines method 4's line and
+        contour geometry with quantized-color connected components, removing
+        only near-duplicate proposals while retaining useful nested regions.
+
+        Keeping the import local avoids loading the experimental OpenCV module
+        unless rectangle detection is requested.  The implementation should
+        move into the package when rectangle-guided OCR is fully integrated.
+        """
+        from experiment_find_rectangles import find_rectangles5
+
+        return find_rectangles5(image)
+
     def log(self, lvl: int) -> None:
         """
         Log images with an arbitrary logging level.
