@@ -2975,12 +2975,17 @@ class TextFinder(ContourFinder):
                 hlopened = cv2.morphologyEx(
                     detection_img, cv2.MORPH_OPEN, hline, iterations=1
                 )
+                #hlopened = cv2.GaussianBlur(hlopened, (5, 5), 0)
                 vline = cv2.getStructuringElement(cv2.MORPH_RECT, (i, max_segment))
                 vlopened = cv2.morphologyEx(
                     detection_img, cv2.MORPH_OPEN, vline, iterations=1
                 )
+                #vlopened = cv2.GaussianBlur(vlopened, (5, 5), 0)
                 detection_img -= hlopened
                 detection_img -= vlopened
+                # TODO: the h/v line stripped mask also seems harmed by some additional
+                # removed noise that needs further smoothening (opening?)
+                #detection_img = hlopened + vlopened
 
         else:
             detection_img = cv2.cvtColor(detection_img, cv2.COLOR_RGB2GRAY)
