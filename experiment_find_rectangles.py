@@ -11,7 +11,8 @@ def find_rectangles1(image):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # This gets rid of the background gray lines.
-    _, binary = cv2.threshold(gray, 230, 255, cv2.THRESH_TOZERO_INV)
+    #_, binary = cv2.threshold(gray, 230, 255, cv2.THRESH_TOZERO_INV)
+    binary = gray
 
     # # Visualize thresholded image
     cv2.imshow("Thresholded Image", cv2.resize(binary, None, fx=0.5, fy=0.5))
