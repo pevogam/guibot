@@ -546,6 +546,7 @@ class AutoPyController(Controller):
             autopy_bmp = self._backend_obj.bitmap.capture_screen(
                 ((xpos, ypos), (width, height))
             )
+            print(99, xpos, ypos, width, height)
         except (ValueError, IOError) as error:
             logging.warning(f"Could not capture screen: {error}")
             return Image("", PIL.Image.new("RGB", (1, 1)))
@@ -553,6 +554,7 @@ class AutoPyController(Controller):
 
         with PIL.Image.open(filename) as f:
             pil_image = f.convert("RGB")
+            print(98, pil_image.width, pil_image.height)
         os.unlink(filename)
         return Image("", pil_image)
 
