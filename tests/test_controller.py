@@ -22,6 +22,10 @@ import shutil
 import unittest
 import subprocess
 from typing import Any
+from unittest import mock
+
+import numpy
+import PIL.Image
 
 import common_test
 from guibot.errors import *
@@ -404,6 +408,84 @@ class ControllerTest(unittest.TestCase):
                 self.child_app = None
 
                 self._verify_dumps("keys")
+
+
+class AutoPyControllerTest(unittest.TestCase):
+
+    def setUp(self) -> None:
+        ypos, xpos = numpy.indices((768, 1024))
+        pixels = numpy.stack((xpos % 251, ypos % 251, (xpos + ypos) % 251), axis=-1)
+        self.screen = PIL.Image.fromarray(pixels.astype(numpy.uint8))
+        self.backend = mock.MagicMock()
+        self.backend.bitmap.capture_screen.side_effect = self.capture_screen
+        self.backend.mouse.location.return_value = (0.0, 0.0)
+
+    def make_controller(self, scale: float) -> AutoPyController:
+        self.backend.screen.scale.return_value = scale
+        # AutoPilot derives points by multiplying by the inverse scale.
+        self.backend.screen.size.return_value = (
+            self.screen.width * (1.0 / scale), self.screen.height * (1.0 / scale)
+        )
+        with mock.patch.dict('sys.modules', autopy=self.backend):
+            return AutoPyController()
+
+    def capture_screen(self, rect):
+        (xpos, ypos), (width, height) = rect
+        screen_width, screen_height = self.backend.screen.size()
+        self.assertGreaterEqual(xpos, 0)
+        self.assertGreaterEqual(ypos, 0)
+        self.assertLessEqual(xpos + width, screen_width)
+        self.assertLessEqual(ypos + height, screen_height)
+        self.assertGreaterEqual(width, 1.0 - 1e-12)
+        self.assertGreaterEqual(height, 1.0 - 1e-12)
+        scale = self.backend.screen.scale()
+        xpos, ypos, width, height = (
+            round(value * scale) for value in (xpos, ypos, width, height)
+        )
+        captured = self.screen.crop((xpos, ypos, xpos + width, ypos + height))
+        bitmap = mock.Mock()
+        bitmap.save.side_effect = captured.save
+        return bitmap
+
+    def test_capture_scaled(self) -> None:
+        """Preserve exact pixels for full, partial, clipped, and tiny captures."""
+        regions = [(20, 10, 511, 383), (0, 0, 1, 1), (1023, 767, 1, 1),
+                   (1023, 10, 1, 20), (20, 767, 30, 1),
+                   (263, 0, 761, 100), (0, 251, 100, 517)]
+        for scale in (0.75, 1.0, 1.04, 1.2, 1.25, 1.5, 1.75, 2.0, 2.5):
+            with self.subTest(scale=scale):
+                display = self.make_controller(scale)
+                self.assertEqual((display.width, display.height), self.screen.size)
+                self.assertEqual(display.capture_screen().pil_image.tobytes(),
+                                 self.screen.tobytes())
+                for xpos, ypos, width, height in regions:
+                    with self.subTest(region=(xpos, ypos, width, height)):
+                        captured = display.capture_screen(xpos, ypos, width, height)
+                        expected = self.screen.crop((xpos, ypos, xpos + width, ypos + height))
+                        self.assertEqual(captured.pil_image.size, expected.size)
+                        self.assertEqual(captured.pil_image.tobytes(), expected.tobytes())
+                captured = display.capture_screen(60000, 50000, 80000, 40000)
+                self.assertEqual(captured.pil_image.size, (1, 1))
+                self.assertEqual(captured.pil_image.getpixel((0, 0)),
+                                 self.screen.getpixel((1023, 767)))
+
+    def test_mouse_location_rounding(self) -> None:
+        """Recover the original pixel coordinates from fractional points."""
+        display = self.make_controller(1.04)
+        self.backend.mouse.location.return_value = (100 * (1.0 / 1.04), 600 * (1.0 / 1.04))
+        self.assertEqual((display.mouse_location.x, display.mouse_location.y), (100, 600))
+        display.mouse_move(Location(100, 600), smooth=False)
+        self.backend.mouse.move.assert_called_once_with(100 / 1.04, 600 / 1.04)
+
+    def test_capture_incomplete(self) -> None:
+        """Do not silently pad pixels missing from an older AutoPy capture."""
+        display = self.make_controller(1.04)
+        bitmap = mock.Mock()
+        bitmap.save.side_effect = self.screen.crop((0, 0, 1024, 767)).save
+        self.backend.bitmap.capture_screen.side_effect = None
+        self.backend.bitmap.capture_screen.return_value = bitmap
+        with self.assertRaisesRegex(IOError, 'fewer pixels'):
+            display.capture_screen()
 
 
 if __name__ == '__main__':

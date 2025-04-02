@@ -29,6 +29,7 @@ import os
 import re
 import time
 import logging
+import math
 import numpy
 import PIL.Image
 from tempfile import NamedTemporaryFile
@@ -424,7 +425,7 @@ class AutoPyController(Controller):
         See base method for details.
         """
         loc = self._backend_obj.mouse.location()
-        return Location(int(loc[0] * self._scale), int(loc[1] * self._scale))
+        return Location(round(loc[0] * self._scale), round(loc[1] * self._scale))
 
     mouse_location = property(fget=get_mouse_location)
 
@@ -472,9 +473,9 @@ class AutoPyController(Controller):
         self._backend_obj = autopy
 
         self._scale = self._backend_obj.screen.scale()
-        self._width, self._height = self._backend_obj.screen.size()
-        self._width = int(self._width * self._scale)
-        self._height = int(self._height * self._scale)
+        self._width_points, self._height_points = self._backend_obj.screen.size()
+        self._width = round(self._width_points * self._scale)
+        self._height = round(self._height_points * self._scale)
         self._pointer = self.mouse_location
         self._keymap = inputmap.AutoPyKey()
         self._modmap = inputmap.AutoPyKeyModifier()
@@ -502,27 +503,32 @@ class AutoPyController(Controller):
         """
         xpos, ypos, width, height, filename = self._region_from_args(*args)
 
-        # autopy works in points and requires a minimum of one point along a dimension
-        xpos, ypos, width, height = (
-            xpos / self._scale,
-            ypos / self._scale,
-            width / self._scale,
-            height / self._scale,
-        )
-        xpos, ypos = float(xpos) - (1.0 - float(width)) if width < 1.0 else xpos, (
-            float(ypos) - (1.0 - float(height)) if height < 1.0 else ypos
-        )
-        height, width = 1.0 if float(height) < 1.0 else height, (
-            1.0 if float(width) < 1.0 else width
-        )
+        # Enlarge small captures to at least one point, keeping pixel-aligned
+        # origins inside the screen. Crop the extra pixels after capturing.
+        capture_width = min(max(width, math.ceil(self._scale)), self._width)
+        capture_height = min(max(height, math.ceil(self._scale)), self._height)
+        capture_x = min(xpos, self._width - capture_width)
+        capture_y = min(ypos, self._height - capture_height)
+        point_x, point_y = capture_x / self._scale, capture_y / self._scale
+        # Native point bounds avoid round-trip errors at the right/bottom edge.
+        point_width = min(capture_width / self._scale, self._width_points - point_x)
+        point_height = min(capture_height / self._scale, self._height_points - point_y)
+        if point_x + point_width > self._width_points:
+            point_width = math.nextafter(point_width, 0.0)
+        if point_y + point_height > self._height_points:
+            point_height = math.nextafter(point_height, 0.0)
         autopy_bmp = self._backend_obj.bitmap.capture_screen(
-            ((xpos, ypos), (width, height))
+            ((point_x, point_y), (point_width, point_height))
         )
         autopy_bmp.save(filename)
 
         with PIL.Image.open(filename) as f:
             pil_image = f.convert("RGB")
         os.unlink(filename)
+        if pil_image.width < capture_width or pil_image.height < capture_height:
+            raise IOError("AutoPy captured fewer pixels than requested")
+        left, top = xpos - capture_x, ypos - capture_y
+        pil_image = pil_image.crop((left, top, left + width, top + height))
         return Image("", pil_image)
 
     def mouse_move(self, location: Location, smooth: bool = True) -> None:
