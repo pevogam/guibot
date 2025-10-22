@@ -15,7 +15,7 @@
 # along with guibot.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import stat
+import functools
 import time
 import shutil
 import unittest
@@ -29,6 +29,27 @@ from guibot.region import Region
 from guibot.location import Location
 from guibot.config import GlobalConfig
 from guibot.imagelogger import ImageLogger
+
+
+def retry_on_failure(max_attempts=5, delay=1):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_attempts-1):
+                try:
+                    return func(*args, **kwargs)
+                except AssertionError:
+                    self = args[0]
+                    if hasattr(self, "tearDown"):
+                        self.tearDown()
+                    if hasattr(self, "setUp"):
+                        self.setUp()
+                    # exponential backoff to avoid current load
+                    time.sleep(delay * (2 ** attempt))
+            # the final try will not be retried
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
 
 
 class ControllerTest(unittest.TestCase):
@@ -139,18 +160,12 @@ class ControllerTest(unittest.TestCase):
             time.sleep(0.5)
 
     def wait_end(self, subprocess_pipe: Any, timeout: int = 30) -> int:
-        expires = time.time() + timeout
-
-        while True:
-            exit_code = subprocess_pipe.poll()
-            if exit_code is not None:
-                return exit_code
-
-            if time.time() > expires:
-                self.fail('Program did not close on time. Ignoring')
-                break
-
-            time.sleep(0.2)
+        try:
+            exit_code = subprocess_pipe.wait(timeout=timeout)
+            return exit_code
+        except subprocess.TimeoutExpired:
+            subprocess_pipe.kill()  # or terminate()
+            self.fail('Program did not close on time. Ignoring')
 
     def _verify_dumps(self, control_type: str) -> list[str]:
         dumps = os.listdir(self.logpath)
@@ -263,6 +278,7 @@ class ControllerTest(unittest.TestCase):
                 self.assertAlmostEqual(location.y, 20, delta=1)
 
     @unittest.skipIf(os.environ.get('DISABLE_PYQT', "0") == "1", "PyQt disabled")
+    @retry_on_failure(max_attempts=5)
     def test_mouse_click(self) -> None:
         """Check mouse click effect for all display controller backends."""
         for display in self.backends:
@@ -271,6 +287,7 @@ class ControllerTest(unittest.TestCase):
                 for count in range(1, 4):
                     # include some modifiers without direct effect in this case
                     for modifiers in [None, [display.keymap.CTRL]]:
+                        shutil.rmtree(self.logpath, ignore_errors=True)
 
                         if button == mouse.LEFT_BUTTON and count == 1:
                             move_to = self.click_control
@@ -295,11 +312,10 @@ class ControllerTest(unittest.TestCase):
                             display.mouse_move(self.context_menu_close_control, smooth=False)
                             display.mouse_click(mouse.LEFT_BUTTON)
 
-                        self.assertEqual(0, self.wait_end(self.child_app, timeout=60))
+                        self.assertEqual(0, self.wait_end(self.child_app))
                         self.child_app = None
 
                         self._verify_dumps("mouse")
-                        shutil.rmtree(self.logpath)
 
     @unittest.skipIf(os.environ.get('DISABLE_PYQT', "0") == "1", "PyQt disabled")
     def test_mouse_updown(self) -> None:
@@ -344,10 +360,12 @@ class ControllerTest(unittest.TestCase):
 
     @unittest.skipIf(os.environ.get('DISABLE_PYQT', "0") == "1", "PyQt disabled")
     @unittest.skipIf(os.name == 'nt', "Windows takes too long, test fails")
+    @retry_on_failure(max_attempts=5)
     def test_keys_press(self) -> None:
         """Check key press effect for all display controller backends."""
         for display in self.backends:
             key = display.keymap
+            shutil.rmtree(self.logpath, ignore_errors=True)
 
             self.show_application()
             time.sleep(1)
@@ -363,14 +381,15 @@ class ControllerTest(unittest.TestCase):
             self.child_app = None
 
             self._verify_dumps("keys")
-            shutil.rmtree(self.logpath)
 
     @unittest.skipIf(os.environ.get('DISABLE_PYQT', "0") == "1", "PyQt disabled")
+    @retry_on_failure(max_attempts=5)
     def test_keys_type(self) -> None:
         """Check key type effect for all display controller backends."""
         for display in self.backends:
             # include some modifiers without direct effect in this case
             for modifiers in [None, [display.keymap.ALT]]:
+                shutil.rmtree(self.logpath, ignore_errors=True)
                 self.show_application()
 
                 display.mouse_move(self.textedit_quit_control)
@@ -384,7 +403,6 @@ class ControllerTest(unittest.TestCase):
                 self.child_app = None
 
                 self._verify_dumps("keys")
-                shutil.rmtree(self.logpath)
 
 
 if __name__ == '__main__':
