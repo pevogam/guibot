@@ -327,6 +327,7 @@ class RegionTest(unittest.TestCase):
         self.close_windows()
 
     @unittest.skipIf(os.environ.get('DISABLE_PYQT', "0") == "1", "PyQt disabled")
+    @unittest.skipIf(os.name == 'nt', "AutoPy on Windows has a panic attack")
     def test_type_text(self) -> None:
         self.show_application()
         self.region.click(self.textedit_quit_control)
@@ -335,6 +336,7 @@ class RegionTest(unittest.TestCase):
         self.child_app = None
 
     @unittest.skipIf(os.environ.get('DISABLE_PYQT', "0") == "1", "PyQt disabled")
+    @unittest.skipIf(os.name == 'nt', "AutoPy on Windows has a panic attack")
     def test_type_at(self) -> None:
         self.show_application()
         self.region.type_at('quit', self.textedit_quit_control)
@@ -349,6 +351,7 @@ class RegionTest(unittest.TestCase):
         self.child_app = None
 
     @unittest.skipIf(os.environ.get('DISABLE_PYQT', "0") == "1", "PyQt disabled")
+    @unittest.skipIf(os.name == 'nt', "AutoPy on Windows has a panic attack")
     def test_fill_at(self) -> None:
         self.show_application()
         self.region.fill_at(self.textedit_quit_control, 'quit', 0, 0)
