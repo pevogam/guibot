@@ -354,7 +354,6 @@ class ControllerTest(unittest.TestCase):
                 self.child_app = None
 
     @unittest.skipIf(os.environ.get('DISABLE_PYQT', "0") == "1", "PyQt disabled")
-    @unittest.skipIf(os.name == 'nt', "Windows takes too long, test fails")
     @retry_on_failure(max_attempts=5)
     def test_keys_press(self) -> None:
         """Check key press effect for all display controller backends."""
