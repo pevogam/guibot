@@ -603,7 +603,7 @@ class AutoPyFinder(Finder):
             self._bitmapcache[needle.filename] = autopy_needle
 
         # TODO: Use in-memory conversion
-        with NamedTemporaryFile(prefix="guibot", suffix=".png") as f:
+        with NamedTemporaryFile(prefix="guibot", suffix=".png", delete=False) as f:
             haystack.save(f.name)
             autopy_screenshot = bitmap.Bitmap.open(f.name)
 
