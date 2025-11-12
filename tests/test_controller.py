@@ -176,8 +176,8 @@ class ControllerTest(unittest.TestCase):
     def test_basic(self) -> None:
         """Check basic functionality for all display controller backends."""
         for display in self.backends:
-            self.assertTrue(display.width > 0)
-            self.assertTrue(display.height > 0)
+            self.assertGreater(display.width, 0)
+            self.assertGreater(display.height, 0)
 
             self.assertIsNotNone(display.keymap)
             self.assertIsNotNone(display.mousemap)
