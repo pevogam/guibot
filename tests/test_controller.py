@@ -57,29 +57,26 @@ class ControllerTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         # the VNC display controller is disabled on OS-es like Windows
-        if os.environ.get('DISABLE_VNCDOTOOL', "0") == "1":
-            return
+        if os.environ.get('DISABLE_VNCDOTOOL', "0") == "0":
+            cls.vncpass = "test1234"
 
-        cls.vncpass = "test1234"
+            os.environ["USER"] = os.environ.get("USER", "root")
+            os.environ["HOME"] = os.environ.get("HOME", "/root")
 
-        os.environ["USER"] = os.environ.get("USER", "root")
-        os.environ["HOME"] = os.environ.get("HOME", "/root")
+            # create the password file for the VNC server
+            passfile = os.path.join(os.environ["HOME"], ".vnc/passwd")
+            os.makedirs(os.path.dirname(passfile), exist_ok=True)
+            if not os.path.isfile(passfile):
+                subprocess.check_call(["x11vnc", "-q", "-storepasswd", cls.vncpass, passfile])
 
-        # create the password file for the VNC server
-        passfile = os.path.join(os.environ["HOME"], ".vnc/passwd")
-        os.makedirs(os.path.dirname(passfile), exist_ok=True)
-        if not os.path.isfile(passfile):
-            subprocess.check_call(["x11vnc", "-q", "-storepasswd", cls.vncpass, passfile])
-
-        # run the server in the background
-        cls._server = subprocess.Popen(["x11vnc", "-q", "-forever", "-display",
-                                        ":99", "-rfbauth", passfile])
+            # run the server in the background
+            cls._server = subprocess.Popen(["x11vnc", "-q", "-forever", "-display",
+                                            ":99", "-rfbauth", passfile])
 
         # preserve values of static attributes
         cls.prev_loglevel = GlobalConfig.image_logging_level
         cls.prev_logpath = GlobalConfig.image_logging_destination
         cls.prev_logwidth = GlobalConfig.image_logging_step_width
-
         cls.logpath = os.path.join(common_test.unittest_dir, 'tmp')
         GlobalConfig.image_logging_level = 0
         GlobalConfig.image_logging_destination = cls.logpath
@@ -88,14 +85,12 @@ class ControllerTest(unittest.TestCase):
     @classmethod
     def tearDownClass(cls) -> None:
         # the VNC display controller is disabled on OS-es like Windows
-        if os.environ.get('DISABLE_VNCDOTOOL', "0") == "1":
-            return
-
-        # kill the current server
-        cls._server.terminate()
-        vnc_config_dir = os.path.join(os.environ["HOME"], ".vnc")
-        if os.path.exists(vnc_config_dir):
-            shutil.rmtree(vnc_config_dir)
+        if os.environ.get('DISABLE_VNCDOTOOL', "0") == "0":
+            # kill the current server
+            cls._server.terminate()
+            vnc_config_dir = os.path.join(os.environ["HOME"], ".vnc")
+            if os.path.exists(vnc_config_dir):
+                shutil.rmtree(vnc_config_dir)
 
         GlobalConfig.image_logging_level = cls.prev_loglevel
         GlobalConfig.image_logging_destination = cls.prev_logpath
