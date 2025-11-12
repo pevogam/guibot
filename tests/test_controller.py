@@ -171,16 +171,17 @@ class ControllerTest(unittest.TestCase):
     def test_basic(self) -> None:
         """Check basic functionality for all display controller backends."""
         for display in self.backends:
-            self.assertGreater(display.width, 0)
-            self.assertGreater(display.height, 0)
+            with self.subTest(display):
+                self.assertGreater(display.width, 0)
+                self.assertGreater(display.height, 0)
 
-            self.assertIsNotNone(display.keymap)
-            self.assertIsNotNone(display.mousemap)
-            self.assertIsNotNone(display.modmap)
+                self.assertIsNotNone(display.keymap)
+                self.assertIsNotNone(display.mousemap)
+                self.assertIsNotNone(display.modmap)
 
-            location = display.mouse_location
-            self.assertLessEqual(location.x, display.width)
-            self.assertLessEqual(location.y, display.height)
+                location = display.mouse_location
+                self.assertLessEqual(location.x, display.width)
+                self.assertLessEqual(location.y, display.height)
 
     def test_single_backend(self) -> None:
         """Check display controller backend configuration and synchronization."""
@@ -189,88 +190,92 @@ class ControllerTest(unittest.TestCase):
             if isinstance(display, VNCDoToolController):
                 continue
 
-            display.configure_backend(reset=True)
-            display.synchronize_backend(reset=True)
-            self.assertIn("control", display.params)
-            categories = set(display.params.keys())
-            self.assertEqual(len(categories), 3)
-            categories -= set(("type", "control"))
-            category = categories.pop()
+            with self.subTest(display):
+                display.configure_backend(reset=True)
+                display.synchronize_backend(reset=True)
+                self.assertIn("control", display.params)
+                categories = set(display.params.keys())
+                self.assertEqual(len(categories), 3)
+                categories -= set(("type", "control"))
+                category = categories.pop()
 
-            self.assertIn("backend", display.params["control"])
-            self.assertEqual(display.params["control"]["backend"], category)
-            self.assertIn("backend", display.params[category])
-            self.assertEqual(display.params[category]["backend"], "none")
+                self.assertIn("backend", display.params["control"])
+                self.assertEqual(display.params["control"]["backend"], category)
+                self.assertIn("backend", display.params[category])
+                self.assertEqual(display.params[category]["backend"], "none")
 
-            with self.assertRaises(UnsupportedBackendError):
-                display.configure_backend(category="noncontrol")
-            display.configure_backend(backend="ineffective", category=category)
-            self.assertEqual(display.params[category]["backend"], "none")
-            # cannot set inherited backends directly, only own categories
-            with self.assertRaises(UnsupportedBackendError):
-                display.configure_backend(backend=category, category="control")
+                with self.assertRaises(UnsupportedBackendError):
+                    display.configure_backend(category="noncontrol")
+                display.configure_backend(backend="ineffective", category=category)
+                self.assertEqual(display.params[category]["backend"], "none")
+                # cannot set inherited backends directly, only own categories
+                with self.assertRaises(UnsupportedBackendError):
+                    display.configure_backend(backend=category, category="control")
 
-            with self.assertRaises(UnsupportedBackendError):
-                display.synchronize_backend(category="noncontrol")
-            # no such backend has been configured so far
-            with self.assertRaises(UninitializedBackendError):
-                display.synchronize_backend(backend="ineffective", category=category)
-            self.assertEqual(display.params[category]["backend"], "none")
-            # cannot set inherited backends directly, only own categories
-            with self.assertRaises(UnsupportedBackendError):
-                display.synchronize_backend(backend=category, category="control")
+                with self.assertRaises(UnsupportedBackendError):
+                    display.synchronize_backend(category="noncontrol")
+                # no such backend has been configured so far
+                with self.assertRaises(UninitializedBackendError):
+                    display.synchronize_backend(backend="ineffective", category=category)
+                self.assertEqual(display.params[category]["backend"], "none")
+                # cannot set inherited backends directly, only own categories
+                with self.assertRaises(UnsupportedBackendError):
+                    display.synchronize_backend(backend=category, category="control")
 
     def test_capture(self) -> None:
         """Check screendump capabilities for all display controller backends."""
         for display in self.backends:
-            screen_width = display.width
-            screen_height = display.height
+            with self.subTest(display):
+                screen_width = display.width
+                screen_height = display.height
 
-            # Fullscreen capture
-            captured = display.capture_screen()
-            self.assertEqual(screen_width, captured.width)
-            self.assertEqual(screen_height, captured.height)
+                # Fullscreen capture
+                captured = display.capture_screen()
+                self.assertEqual(screen_width, captured.width)
+                self.assertEqual(screen_height, captured.height)
 
-            # Capture with coordinates
-            captured = display.capture_screen(20, 10, int(screen_width/2), int(screen_height/2))
-            self.assertEqual(int(screen_width/2), captured.width)
-            self.assertEqual(int(screen_height/2), captured.height)
+                # Capture with coordinates
+                captured = display.capture_screen(20, 10, int(screen_width/2), int(screen_height/2))
+                self.assertEqual(int(screen_width/2), captured.width)
+                self.assertEqual(int(screen_height/2), captured.height)
 
-            # Capture with Region
-            region = Region(10, 10, 320, 200)
-            captured = display.capture_screen(region)
-            self.assertEqual(320, captured.width)
-            self.assertEqual(200, captured.height)
+                # Capture with Region
+                region = Region(10, 10, 320, 200)
+                captured = display.capture_screen(region)
+                self.assertEqual(320, captured.width)
+                self.assertEqual(200, captured.height)
 
     def test_capture_clipping(self) -> None:
         """Check screendump clipping for all display controller backends."""
         for display in self.backends:
-            screen_width = display.width
-            screen_height = display.height
+            with self.subTest(display):
+                screen_width = display.width
+                screen_height = display.height
 
-            captured = display.capture_screen(0, 0, 80000, 40000)
-            self.assertEqual(screen_width, captured.width)
-            self.assertEqual(screen_height, captured.height)
+                captured = display.capture_screen(0, 0, 80000, 40000)
+                self.assertEqual(screen_width, captured.width)
+                self.assertEqual(screen_height, captured.height)
 
-            captured = display.capture_screen(60000, 50000, 80000, 40000)
-            self.assertEqual(1, captured.width)
-            self.assertEqual(1, captured.height)
+                captured = display.capture_screen(60000, 50000, 80000, 40000)
+                self.assertEqual(1, captured.width)
+                self.assertEqual(1, captured.height)
 
     def test_mouse_move(self) -> None:
         """Check mouse move locations for all display controller backends."""
         for display in self.backends:
             for is_smooth in [False, True]:
-                display.mouse_move(Location(0, 0), smooth=is_smooth)
-                location = display.mouse_location
-                # some backends are not pixel perfect
-                self.assertAlmostEqual(location.x, 0, delta=1)
-                self.assertAlmostEqual(location.y, 0, delta=1)
+                with self.subTest(f"{display}-smooth={is_smooth}"):
+                    display.mouse_move(Location(0, 0), smooth=is_smooth)
+                    location = display.mouse_location
+                    # some backends are not pixel perfect
+                    self.assertAlmostEqual(location.x, 0, delta=1)
+                    self.assertAlmostEqual(location.y, 0, delta=1)
 
-                display.mouse_move(Location(30, 20), smooth=is_smooth)
-                location = display.mouse_location
-                # some backends are not pixel perfect
-                self.assertAlmostEqual(location.x, 30, delta=1)
-                self.assertAlmostEqual(location.y, 20, delta=1)
+                    display.mouse_move(Location(30, 20), smooth=is_smooth)
+                    location = display.mouse_location
+                    # some backends are not pixel perfect
+                    self.assertAlmostEqual(location.x, 30, delta=1)
+                    self.assertAlmostEqual(location.y, 20, delta=1)
 
     @unittest.skipIf(os.environ.get('DISABLE_PYQT', "0") == "1", "PyQt disabled")
     @retry_on_failure(max_attempts=5)
@@ -283,34 +288,35 @@ class ControllerTest(unittest.TestCase):
                     # include some modifiers without direct effect in this case
                     for modifiers in [None, [display.keymap.CTRL]]:
                         shutil.rmtree(self.logpath, ignore_errors=True)
+                        with self.subTest(f"{display}-{button}-{count}-{modifiers}"):
 
-                        if button == mouse.LEFT_BUTTON and count == 1:
-                            move_to = self.click_control
-                        elif button == mouse.RIGHT_BUTTON and count == 1:
-                            move_to = self.context_menu_control
-                        elif button == mouse.LEFT_BUTTON and count == 2:
-                            move_to = self.double_click_control
-                        else:
-                            # need to implement more GUI components for other cases
-                            continue
+                            if button == mouse.LEFT_BUTTON and count == 1:
+                                move_to = self.click_control
+                            elif button == mouse.RIGHT_BUTTON and count == 1:
+                                move_to = self.context_menu_control
+                            elif button == mouse.LEFT_BUTTON and count == 2:
+                                move_to = self.double_click_control
+                            else:
+                                # need to implement more GUI components for other cases
+                                continue
 
-                        self.show_application()
+                            self.show_application()
 
-                        display.mouse_move(move_to, smooth=False)
-                        display.mouse_click(button, count=count, modifiers=modifiers)
+                            display.mouse_move(move_to, smooth=False)
+                            display.mouse_click(button, count=count, modifiers=modifiers)
 
-                        # single right button has context menu requiring extra care
-                        if button == mouse.RIGHT_BUTTON and count == 1:
-                            # remove auxiliary dumps from first mouse click
-                            shutil.rmtree(self.logpath)
-                            time.sleep(3)
-                            display.mouse_move(self.context_menu_close_control, smooth=False)
-                            display.mouse_click(mouse.LEFT_BUTTON)
+                            # single right button has context menu requiring extra care
+                            if button == mouse.RIGHT_BUTTON and count == 1:
+                                # remove auxiliary dumps from first mouse click
+                                shutil.rmtree(self.logpath)
+                                time.sleep(3)
+                                display.mouse_move(self.context_menu_close_control, smooth=False)
+                                display.mouse_click(mouse.LEFT_BUTTON)
 
-                        self.assertEqual(0, self.wait_end(self.child_app))
-                        self.child_app = None
+                            self.assertEqual(0, self.wait_end(self.child_app))
+                            self.child_app = None
 
-                        self._verify_dumps("mouse")
+                            self._verify_dumps("mouse")
 
     @unittest.skipIf(os.environ.get('DISABLE_PYQT', "0") == "1", "PyQt disabled")
     def test_mouse_updown(self) -> None:
@@ -318,20 +324,21 @@ class ControllerTest(unittest.TestCase):
         for display in self.backends:
             mouse = display.mousemap
             for switch in ["up", "down"]:
-                self.show_application()
+                with self.subTest(f"{display}-{switch}"):
+                    self.show_application()
 
-                move_to = self.mouse_up_control if switch == "up" else self.mouse_down_control
-                display.mouse_move(move_to)
-                # TODO: currently we only have GUI components for the left mouse button
-                button = mouse.LEFT_BUTTON
+                    move_to = self.mouse_up_control if switch == "up" else self.mouse_down_control
+                    display.mouse_move(move_to)
+                    # TODO: currently we only have GUI components for the left mouse button
+                    button = mouse.LEFT_BUTTON
 
-                # either as tested or as toggled buttons setup
-                display.mouse_down(button)
-                # either as tested or as toggled buttons cleanup
-                display.mouse_up(button)
+                    # either as tested or as toggled buttons setup
+                    display.mouse_down(button)
+                    # either as tested or as toggled buttons cleanup
+                    display.mouse_up(button)
 
-                self.assertEqual(0, self.wait_end(self.child_app))
-                self.child_app = None
+                    self.assertEqual(0, self.wait_end(self.child_app))
+                    self.child_app = None
 
     @unittest.skipIf(os.environ.get('DISABLE_PYQT', "0") == "1", "PyQt disabled")
     def test_mouse_scroll(self) -> None:
@@ -341,17 +348,19 @@ class ControllerTest(unittest.TestCase):
                 # TODO: method not available for other backends
                 if not isinstance(display, PyAutoGUIController):
                     continue
-                self.show_application()
 
-                # TODO: currently we don't have any GUI components for this
-                move_to = self.double_click_control
-                display.mouse_move(move_to)
-                display.mouse_scroll(horizontal=horizontal)
-                # cleanup since no control can close the window on scroll
-                display.mouse_click(display.mousemap.LEFT_BUTTON, count=2)
+                with self.subTest(f"{display}-horizontal={horizontal}"):
+                    self.show_application()
 
-                self.assertEqual(0, self.wait_end(self.child_app))
-                self.child_app = None
+                    # TODO: currently we don't have any GUI components for this
+                    move_to = self.double_click_control
+                    display.mouse_move(move_to)
+                    display.mouse_scroll(horizontal=horizontal)
+                    # cleanup since no control can close the window on scroll
+                    display.mouse_click(display.mousemap.LEFT_BUTTON, count=2)
+
+                    self.assertEqual(0, self.wait_end(self.child_app))
+                    self.child_app = None
 
     @unittest.skipIf(os.environ.get('DISABLE_PYQT', "0") == "1", "PyQt disabled")
     @unittest.skipIf(os.name == 'nt', "Windows takes too long, test fails")
@@ -361,21 +370,21 @@ class ControllerTest(unittest.TestCase):
         for display in self.backends:
             key = display.keymap
             shutil.rmtree(self.logpath, ignore_errors=True)
+            with self.subTest(display):
+                self.show_application()
+                time.sleep(1)
+                display.keys_press([key.ESC])
+                self.assertEqual(0, self.wait_end(self.child_app))
 
-            self.show_application()
-            time.sleep(1)
-            display.keys_press([key.ESC])
-            self.assertEqual(0, self.wait_end(self.child_app))
+                # BUG: Qt fails to register a close event in some cases
+                #self.show_application()
+                #time.sleep(1)
+                #display.keys_press([key.ALT, key.F4])
+                #self.assertEqual(0, self.wait_end(self.child_app))
 
-            # BUG: Qt fails to register a close event in some cases
-            #self.show_application()
-            #time.sleep(1)
-            #display.keys_press([key.ALT, key.F4])
-            #self.assertEqual(0, self.wait_end(self.child_app))
+                self.child_app = None
 
-            self.child_app = None
-
-            self._verify_dumps("keys")
+                self._verify_dumps("keys")
 
     @unittest.skipIf(os.environ.get('DISABLE_PYQT', "0") == "1", "PyQt disabled")
     @retry_on_failure(max_attempts=5)
@@ -385,19 +394,20 @@ class ControllerTest(unittest.TestCase):
             # include some modifiers without direct effect in this case
             for modifiers in [None, [display.keymap.ALT]]:
                 shutil.rmtree(self.logpath, ignore_errors=True)
-                self.show_application()
+                with self.subTest(f"{display}-{modifiers}"):
+                    self.show_application()
 
-                display.mouse_move(self.textedit_quit_control)
-                display.mouse_click(display.mousemap.LEFT_BUTTON)
-                # remove auxiliary dumps from mouse click
-                shutil.rmtree(self.logpath)
-                time.sleep(0.2)
-                display.keys_type('quit', modifiers)
+                    display.mouse_move(self.textedit_quit_control)
+                    display.mouse_click(display.mousemap.LEFT_BUTTON)
+                    # remove auxiliary dumps from mouse click
+                    shutil.rmtree(self.logpath)
+                    time.sleep(0.2)
+                    display.keys_type('quit', modifiers)
 
-                self.assertEqual(0, self.wait_end(self.child_app))
-                self.child_app = None
+                    self.assertEqual(0, self.wait_end(self.child_app))
+                    self.child_app = None
 
-                self._verify_dumps("keys")
+                    self._verify_dumps("keys")
 
 
 if __name__ == '__main__':
