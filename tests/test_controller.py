@@ -39,6 +39,7 @@ def retry_on_failure(max_attempts=5, delay=1):
                 try:
                     return func(*args, **kwargs)
                 except AssertionError:
+                    print(f"Retry {attempt+2}")
                     self = args[0]
                     if hasattr(self, "tearDown"):
                         self.tearDown()
@@ -278,7 +279,6 @@ class ControllerTest(unittest.TestCase):
                     self.assertAlmostEqual(location.y, 20, delta=1)
 
     @unittest.skipIf(os.environ.get('DISABLE_PYQT', "0") == "1", "PyQt disabled")
-    @retry_on_failure(max_attempts=5)
     def test_mouse_click(self) -> None:
         """Check mouse click effect for all display controller backends."""
         for display in self.backends:
@@ -288,35 +288,39 @@ class ControllerTest(unittest.TestCase):
                     # include some modifiers without direct effect in this case
                     for modifiers in [None, [display.keymap.CTRL]]:
                         shutil.rmtree(self.logpath, ignore_errors=True)
-                        with self.subTest(f"{display}-{button}-{count}-{modifiers}"):
+                        with self.subTest(f"{type(display)}-{button}-{count}-{modifiers}"):
 
-                            if button == mouse.LEFT_BUTTON and count == 1:
-                                move_to = self.click_control
-                            elif button == mouse.RIGHT_BUTTON and count == 1:
-                                move_to = self.context_menu_control
-                            elif button == mouse.LEFT_BUTTON and count == 2:
-                                move_to = self.double_click_control
-                            else:
-                                # need to implement more GUI components for other cases
-                                continue
+                            @retry_on_failure(max_attempts=5)
+                            def retriable_subtest(self):
+                                if button == mouse.LEFT_BUTTON and count == 1:
+                                    move_to = self.click_control
+                                elif button == mouse.RIGHT_BUTTON and count == 1:
+                                    move_to = self.context_menu_control
+                                elif button == mouse.LEFT_BUTTON and count == 2:
+                                    move_to = self.double_click_control
+                                else:
+                                    # need to implement more GUI components for other cases
+                                    return
 
-                            self.show_application()
+                                self.show_application()
 
-                            display.mouse_move(move_to, smooth=False)
-                            display.mouse_click(button, count=count, modifiers=modifiers)
+                                display.mouse_move(move_to, smooth=False)
+                                display.mouse_click(button, count=count, modifiers=modifiers)
 
-                            # single right button has context menu requiring extra care
-                            if button == mouse.RIGHT_BUTTON and count == 1:
-                                # remove auxiliary dumps from first mouse click
-                                shutil.rmtree(self.logpath)
-                                time.sleep(3)
-                                display.mouse_move(self.context_menu_close_control, smooth=False)
-                                display.mouse_click(mouse.LEFT_BUTTON)
+                                # single right button has context menu requiring extra care
+                                if button == mouse.RIGHT_BUTTON and count == 1:
+                                    # remove auxiliary dumps from first mouse click
+                                    shutil.rmtree(self.logpath)
+                                    time.sleep(3)
+                                    display.mouse_move(self.context_menu_close_control, smooth=False)
+                                    display.mouse_click(mouse.LEFT_BUTTON)
 
-                            self.assertEqual(0, self.wait_end(self.child_app))
-                            self.child_app = None
+                                self.assertEqual(0, self.wait_end(self.child_app))
+                                self.child_app = None
 
-                            self._verify_dumps("mouse")
+                                self._verify_dumps("mouse")
+
+                            retriable_subtest(self)
 
     @unittest.skipIf(os.environ.get('DISABLE_PYQT', "0") == "1", "PyQt disabled")
     def test_mouse_updown(self) -> None:
