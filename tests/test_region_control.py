@@ -92,18 +92,12 @@ class RegionTest(unittest.TestCase):
             time.sleep(0.5)
 
     def wait_end(self, subprocess_pipe: Any, timeout: int = 30) -> int:
-        expires = time.time() + timeout
-
-        while True:
-            exit_code = subprocess_pipe.poll()
-            if exit_code is not None:
-                return exit_code
-
-            if time.time() > expires:
-                self.fail('Program did not close on time. Ignoring')
-                break
-
-            time.sleep(0.2)
+        try:
+            exit_code = subprocess_pipe.wait(timeout=timeout)
+            return exit_code
+        except subprocess.TimeoutExpired:
+            subprocess_pipe.kill()  # or terminate()
+            self.fail('Program did not close on time. Ignoring')
 
     def test_get_mouse_location(self) -> None:
         self.region.hover(Location(0, 0))
