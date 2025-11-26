@@ -377,7 +377,6 @@ class ControllerTest(unittest.TestCase):
             self._verify_dumps("keys")
 
     @unittest.skipIf(os.environ.get('DISABLE_PYQT', "0") == "1", "PyQt disabled")
-    @unittest.skipIf(os.name == 'nt', "AutoPy on Windows has a panic attack")
     @retry_on_failure(max_attempts=5)
     def test_keys_type(self) -> None:
         """Check key type effect for all display controller backends."""
