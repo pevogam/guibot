@@ -7,7 +7,7 @@ on:
 
 jobs:
 
-  original-travis-ci-job:
+  linux-multi-python:
     name: Linux ${{ matrix.install_variant }} with Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
     env:
@@ -30,11 +30,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Cache large ML models
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/torch/hub/checkpoints
-          key: fasterrcnn-258fb6c6+maskrcnn-bf2d0c1e
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
@@ -70,6 +65,11 @@ jobs:
           popd
         if: matrix.install_variant == 'pip'
       - run: sleep 3
+      - name: Cache large ML models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/torch/hub/checkpoints
+          key: fasterrcnn-258fb6c6+maskrcnn-bf2d0c1e
       - name: Prepare virtual screen (fake display)
         run: |
           sudo apt-get -y install libx11-dev libxtst-dev xvfb vim-common
@@ -126,3 +126,45 @@ jobs:
           name: '${{ env.artifact_name }}'
           path: '${{ env.artifact_full_path }}'
         if: matrix.install_variant != 'pip' || matrix.python-version == 3.13
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python 3
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: 'packaging/pip_requirements.txt'
+      - name: Local pip installation on Windows
+        run: |
+          cd packaging
+          pip install --upgrade pip
+          pip install -r pip_requirements.txt
+          pip install .
+      - name: Cache large ML models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/torch/hub/checkpoints
+          key: fasterrcnn-258fb6c6+maskrcnn-bf2d0c1e
+      - name: Prepare virtual screen (fake display)
+        run: |
+          pip install wxPython==4.2.4
+          python -c "import wx; app = wx.App(); display = wx.Display()"
+      - name: Run current semi-isolation semi-integration tests (to be separated in the future)
+        run: |
+          cd tests
+          bash coverage_analysis.sh
+        env:
+          # tesseract doesn't have original installers for Windows
+          DISABLE_OCR: 1
+          # drag/drop and in particular drop has problems on Windows
+          DISABLE_DRAG: 1
+          # requires X server and thus only available on Linux
+          DISABLE_XDOTOOL: 1
+          # requires VNC server and thus only available on Linux
+          DISABLE_VNCDOTOOL: 1

@@ -604,8 +604,12 @@ class AutoPyFinder(Finder):
 
         # TODO: Use in-memory conversion
         with NamedTemporaryFile(prefix="guibot", suffix=".png") as f:
-            haystack.save(f.name)
-            autopy_screenshot = bitmap.Bitmap.open(f.name)
+            filename = f.name
+        try:
+            haystack.save(filename)
+            autopy_screenshot = bitmap.Bitmap.open(filename)
+        finally:
+            os.unlink(filename)
 
         autopy_tolerance = 1.0 - self.params["find"]["similarity"].value
         log.debug(
