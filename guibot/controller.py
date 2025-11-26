@@ -408,26 +408,6 @@ class AutoPyController(Controller):
     AutoPy is a python library portable to Windows, Linux, and MacOS operating systems.
     """
 
-    def get_width(self) -> int:
-        """
-        Getter for readonly attribute.
-
-        :returns: width of the connected screen
-        """
-        return round(self._width)
-
-    width = property(fget=get_width)
-
-    def get_height(self) -> int:
-        """
-        Getter for readonly attribute.
-
-        :returns: height of the connected screen
-        """
-        return round(self._height)
-
-    height = property(fget=get_height)
-
     def __init__(self, configure: bool = True, synchronize: bool = True) -> None:
         """Build a DC backend using AutoPy."""
         super(AutoPyController, self).__init__(configure=False, synchronize=False)
@@ -445,7 +425,7 @@ class AutoPyController(Controller):
         See base method for details.
         """
         loc = self._backend_obj.mouse.location()
-        return Location(round(loc[0] * self._scale), round(loc[1] * self._scale))
+        return Location(int(loc[0] * self._scale), int(loc[1] * self._scale))
 
     mouse_location = property(fget=get_mouse_location)
 
@@ -494,8 +474,8 @@ class AutoPyController(Controller):
 
         self._scale = self._backend_obj.screen.scale()
         self._width, self._height = self._backend_obj.screen.size()
-        self._width = self._width * self._scale
-        self._height = self._height * self._scale
+        self._width = int(self._width * self._scale)
+        self._height = int(self._height * self._scale)
         self._pointer = self.mouse_location
         self._keymap = inputmap.AutoPyKey()
         self._modmap = inputmap.AutoPyKeyModifier()
@@ -524,18 +504,18 @@ class AutoPyController(Controller):
         xpos, ypos, width, height, filename = self._region_from_args(*args)
 
         # autopy works in points and requires a minimum of one point along a dimension
-        # and a maximum of points that may not match the derived maximum pixel count
         xpos, ypos, width, height = (
             xpos / self._scale,
             ypos / self._scale,
             width / self._scale,
             height / self._scale,
         )
-        xpos = max(0.0, min(xpos, self._width - 1.0))
-        ypos = max(0.0, min(ypos, self._height - 1.0))
-        width = max(1.0, min(width, self._width - xpos))
-        height = max(1.0, min(height, self._height - ypos))
-
+        xpos, ypos = float(xpos) - (1.0 - float(width)) if width < 1.0 else xpos, (
+            float(ypos) - (1.0 - float(height)) if height < 1.0 else ypos
+        )
+        height, width = 1.0 if float(height) < 1.0 else height, (
+            1.0 if float(width) < 1.0 else width
+        )
         try:
             autopy_bmp = self._backend_obj.bitmap.capture_screen(
                 ((xpos, ypos), (width, height))
