@@ -4,7 +4,7 @@ SET DISTRO_ROOT="%HOMEDRIVE%"
 
 REM Tesseract doesn't have original installers for Windows
 SET DISABLE_OCR=1
-REM Drag/drop with the current default DC backend is not supported on Windows
+REM Drag/drop and in particular drop has problems on Windows
 SET DISABLE_DRAG=1
 REM Requires X server and thus only available on Linux
 SET DISABLE_XDOTOOL=1
