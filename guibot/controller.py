@@ -425,7 +425,7 @@ class AutoPyController(Controller):
         See base method for details.
         """
         loc = self._backend_obj.mouse.location()
-        return Location(int(loc[0] * self._scale), int(loc[1] * self._scale))
+        return Location(int(loc[0]), int(loc[1]))
 
     mouse_location = property(fget=get_mouse_location)
 
@@ -474,8 +474,8 @@ class AutoPyController(Controller):
 
         self._scale = self._backend_obj.screen.scale()
         self._width, self._height = self._backend_obj.screen.size()
-        self._width = int(self._width * self._scale)
-        self._height = int(self._height * self._scale)
+        self._width = int(self._width)
+        self._height = int(self._height)
         self._pointer = self.mouse_location
         self._keymap = inputmap.AutoPyKey()
         self._modmap = inputmap.AutoPyKeyModifier()
@@ -505,17 +505,15 @@ class AutoPyController(Controller):
 
         # autopy works in points and requires a minimum of one point along a dimension
         xpos, ypos, width, height = (
-            xpos / self._scale,
-            ypos / self._scale,
-            width / self._scale,
-            height / self._scale,
+            float(xpos),
+            float(ypos),
+            float(width),
+            float(height),
         )
-        xpos, ypos = float(xpos) - (1.0 - float(width)) if width < 1.0 else xpos, (
-            float(ypos) - (1.0 - float(height)) if height < 1.0 else ypos
-        )
-        height, width = 1.0 if float(height) < 1.0 else height, (
-            1.0 if float(width) < 1.0 else width
-        )
+        xpos = xpos - (1.0 - width) if width < 1.0 else xpos
+        ypos = ypos - (1.0 - height) if height < 1.0 else ypos
+        height = 1.0 if height < 1.0 else height
+        width = 1.0 if width < 1.0 else width
         try:
             autopy_bmp = self._backend_obj.bitmap.capture_screen(
                 ((xpos, ypos), (width, height))
@@ -526,7 +524,7 @@ class AutoPyController(Controller):
         autopy_bmp.save(filename)
 
         with PIL.Image.open(filename) as f:
-            pil_image = f.convert("RGB")
+            pil_image = f.convert("RGB").resize((int(width), int(height)))
         os.unlink(filename)
         return Image("", pil_image)
 
@@ -538,7 +536,7 @@ class AutoPyController(Controller):
 
         See base method for details.
         """
-        x, y = location.x / self._scale, location.y / self._scale
+        x, y = location.x, location.y
         if smooth:
             self._backend_obj.mouse.smooth_move(x, y)
         else:
