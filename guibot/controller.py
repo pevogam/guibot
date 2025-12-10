@@ -216,7 +216,7 @@ class Controller(LocalConfig):
         """
         self.__synchronize_backend(backend, category, reset)
 
-    def _region_from_args(self, *args: "Region") -> tuple[int, int, int, int, str]:
+    def _region_from_args(self, *args: "list[int] | Region | None") -> tuple[int, int, int, int, str]:
         if len(args) == 4:
             xpos = args[0]
             ypos = args[1]
