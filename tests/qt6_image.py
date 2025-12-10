@@ -14,11 +14,21 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with guibot.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
 import sys
-from PyQt6 import QtGui, QtWidgets, QtCore
+from PyQt6 import QtCore, QtGui, QtWidgets
 
 
-app = QtWidgets.QApplication(sys.argv)
+# Set environment variables before QApplication creation
+os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "0"
+os.environ["QT_SCALE_FACTOR"] = "1"
+os.environ["QT_FONT_DPI"] = "96"
+os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "0"
+
+# Disable DPI scaling policy
+QtGui.QGuiApplication.setHighDpiScaleFactorRoundingPolicy(
+    QtCore.Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
+)
 
 
 class ImageWithLayout(QtWidgets.QWidget):
@@ -28,23 +38,30 @@ class ImageWithLayout(QtWidgets.QWidget):
 
         self.setWindowTitle(title)
 
+        # Create image label
         image = QtWidgets.QLabel(self)
-        image.setPixmap(QtGui.QPixmap(filename))
+        pixmap = QtGui.QPixmap(filename)
+        pixmap.setDevicePixelRatio(1.0)
+        image.setPixmap(pixmap)
+        image.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop | QtCore.Qt.AlignmentFlag.AlignLeft)
 
-        vbox = QtWidgets.QVBoxLayout()
-        vbox.addWidget(image)
-        vbox.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
+        # Create layout with zero margins and spacing
+        layout = QtWidgets.QHBoxLayout()
+        layout.addWidget(image)
+        layout.setContentsMargins(0, 0, 0, 0)  # left, top, right, bottom
+        layout.setSpacing(0)
 
-        hbox = QtWidgets.QHBoxLayout()
-        hbox.addLayout(vbox)
-        hbox.setAlignment(QtCore.Qt.AlignmentFlag.AlignLeft)
-
-        self.setLayout(hbox)
+        self.setLayout(layout)
+        self.setStyleSheet('background: #ffffff;')
         self.showFullScreen()
 
-        self.setStyleSheet('ImageWithLayout { background: #ffffff; }')
-
 if __name__ == "__main__":
-    some_image = ImageWithLayout(*sys.argv[1:])
+    app = QtWidgets.QApplication(sys.argv)
+
+    if len(sys.argv) < 2:
+        print("Usage: python qt6_image.py <image_path>")
+        sys.exit(1)
+
+    some_image = ImageWithLayout(sys.argv[1])
     some_image.show()
     sys.exit(app.exec())
