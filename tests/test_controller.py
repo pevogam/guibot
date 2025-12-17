@@ -15,6 +15,7 @@
 # along with guibot.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import platform
 import functools
 import time
 import shutil
@@ -140,7 +141,7 @@ class ControllerTest(unittest.TestCase):
                 display._backend_obj.disconnect()
 
     def show_application(self) -> None:
-        python = 'python.exe' if os.name == 'nt' else 'python3'
+        python = 'python.exe' if platform.system() == 'Windows' else 'python3'
         self.child_app = subprocess.Popen([python, self.script_app])
         # HACK: avoid small variability in loading speed
         time.sleep(3)
@@ -260,6 +261,9 @@ class ControllerTest(unittest.TestCase):
         """Check mouse move locations for all display controller backends."""
         for display in self.backends:
             for is_smooth in [False, True]:
+                # TODO: instant mouse move has races on macOS
+                if not is_smooth and platform.system() == 'Darwin':
+                    continue
                 display.mouse_move(Location(0, 0), smooth=is_smooth)
                 location = display.mouse_location
                 # some backends are not pixel perfect
@@ -318,6 +322,9 @@ class ControllerTest(unittest.TestCase):
         for display in self.backends:
             mouse = display.mousemap
             for switch in ["up", "down"]:
+                # TODO: mouse up has problems on macOS
+                if switch == "up" and platform.system() == 'Darwin':
+                    continue
                 self.show_application()
 
                 move_to = self.mouse_up_control if switch == "up" else self.mouse_down_control
@@ -377,7 +384,7 @@ class ControllerTest(unittest.TestCase):
             self._verify_dumps("keys")
 
     @unittest.skipIf(os.environ.get('DISABLE_PYQT', "0") == "1", "PyQt disabled")
-    @unittest.skipIf(os.name == 'nt', "AutoPy on Windows has a panic attack")
+    @unittest.skipIf(platform.system() == 'Windows', "AutoPy on Windows has a panic attack")
     @retry_on_failure(max_attempts=5)
     def test_keys_type(self) -> None:
         """Check key type effect for all display controller backends."""

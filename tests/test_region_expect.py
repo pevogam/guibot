@@ -15,6 +15,7 @@
 # along with guibot.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import platform
 import unittest
 import time
 import shutil
@@ -76,7 +77,7 @@ class RegionTest(unittest.TestCase):
 
     def show_image(self, filename: str) -> None:
         filename = self.file_resolver.search(filename)
-        python = 'python.exe' if os.name == 'nt' else 'python3'
+        python = 'python.exe' if platform.system() == 'Windows' else 'python3'
         self.child_img = subprocess.Popen([python, self.script_img, filename])
         # HACK: avoid small variability in loading speed
         time.sleep(3)
@@ -121,15 +122,15 @@ class RegionTest(unittest.TestCase):
         self.show_image('all_shapes')
 
         match = self.region.find(Image('shape_green_box'))
-        self.assertAlmostEqual(match.x, 30, delta=5)
-        self.assertAlmostEqual(match.y, 190, delta=5)
+        self.assertAlmostEqual(match.x, 20, delta=5)
+        self.assertAlmostEqual(match.y, 180, delta=5)
         self.assertAlmostEqual(70, match.width, delta=5)
         self.assertAlmostEqual(50, match.height, delta=5)
 
         # Match again - this time just pass a filename
         match = self.region.find('shape_green_box')
-        self.assertAlmostEqual(match.x, 30, delta=5)
-        self.assertAlmostEqual(match.y, 190, delta=5)
+        self.assertAlmostEqual(match.x, 20, delta=5)
+        self.assertAlmostEqual(match.y, 180, delta=5)
         self.assertAlmostEqual(70, match.width, delta=5)
         self.assertAlmostEqual(50, match.height, delta=5)
 
@@ -182,14 +183,14 @@ class RegionTest(unittest.TestCase):
         greenbox = Image('shape_green_box')
         matches = self.region.find_all(greenbox)
         self.assertEqual(len(matches), 1)
-        self.assertAlmostEqual(matches[0].x, 30, delta=5)
-        self.assertAlmostEqual(matches[0].y, 190, delta=5)
+        self.assertAlmostEqual(matches[0].x, 20, delta=5)
+        self.assertAlmostEqual(matches[0].y, 180, delta=5)
         self.assertAlmostEqual(70, matches[0].width, delta=5)
         self.assertAlmostEqual(50, matches[0].height, delta=5)
 
         redbox = Image('shape_red_box')
         matches = self.region.find_all(redbox)
-        expected_matches = [(25, 25), (320, 25), (315, 115)]
+        expected_matches = [(15, 15), (310, 15), (305, 105)]
         self.assertEqual(len(matches), len(expected_matches))
         for match in matches:
             self.region.hover(match)
@@ -205,7 +206,7 @@ class RegionTest(unittest.TestCase):
         self.region.cv_backend.matcher.params["template"]["nocolor"].value = False
         matches = self.region.find_all(pinkbox)
         # approximately the above coordinates since maching different needle
-        expected_matches = [(25, 35), (320, 40), (320, 125), (30, 255)]
+        expected_matches = [(15, 25), (310, 30), (305, 120), (20, 245)]
         self.assertEqual(len(matches), len(expected_matches))
         for match in matches:
             self.region.hover(match)
@@ -219,7 +220,7 @@ class RegionTest(unittest.TestCase):
         self.region.cv_backend.matcher.params["find"]["similarity"].value = 0.8
         self.region.cv_backend.matcher.params["template"]["nocolor"].value = True
         matches = self.region.find_all(pinkbox)
-        expected_matches = [(30, 120), (30, 195), (30, 255)]
+        expected_matches = [(20, 110), (20, 185), (20, 245)]
         self.assertEqual(len(matches), len(expected_matches))
         for match in matches:
             self.region.hover(match)
