@@ -184,6 +184,10 @@ jobs:
           python-version: '3.12'
           cache: 'pip'
           cache-dependency-path: 'packaging/pip_requirements.txt'
+      - name: Install non-python dependencies using system packager
+        run: |
+          # ocr
+          brew install tesseract
       - name: Local pip installation on macOS
         run: |
           cd packaging
@@ -204,8 +208,6 @@ jobs:
           cd tests
           bash coverage_analysis.sh
         env:
-          # TODO: enable tesseract for macOS if there is more interest
-          DISABLE_OCR: 1
           # drag/drop and in particular drop has problems with AutoPy on macOS
           DISABLE_DRAG: 1
           # requires X server and thus only available on Linux
