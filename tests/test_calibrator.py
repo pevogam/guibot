@@ -15,6 +15,7 @@
 # along with guibot.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import platform
 import unittest
 import random
 import pprint
@@ -155,7 +156,8 @@ class CalibratorTest(unittest.TestCase):
                 self.assertEqual(result[1], 0.0, "Incorrect similarity for case '%s' %s %s" % result)
                 self.assertGreater(result[2], 0.0, "Strictly positive time is required to run case '%s' %s %s" % result)
 
-    @unittest.skipIf(os.name == 'nt', "Contour completes within 0 seconds for some reason")
+    @unittest.skipIf(platform.system() == 'Windows',
+                     "Contour completes within 0 seconds for some reason")
     @unittest.skipIf(os.environ.get('DISABLE_OPENCV', "0") == "1", "OpenCV disabled")
     def test_benchmark_contour(self) -> None:
         """Check that benchmarking of the OpenCV countour backend produces correct results."""

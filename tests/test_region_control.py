@@ -15,6 +15,7 @@
 # along with guibot.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import platform
 import unittest
 import time
 import shutil
@@ -77,7 +78,7 @@ class RegionTest(unittest.TestCase):
             shutil.rmtree(GlobalConfig.image_logging_destination)
 
     def show_application(self) -> None:
-        python = 'python.exe' if os.name == 'nt' else 'python3'
+        python = 'python.exe' if platform.system() == 'Windows' else 'python3'
         self.child_app = subprocess.Popen([python, self.script_app])
         # HACK: avoid small variability in loading speed
         time.sleep(3)
@@ -115,6 +116,8 @@ class RegionTest(unittest.TestCase):
     @unittest.skipIf(os.environ.get('DISABLE_OPENCV', "0") == "1" or
                      os.environ.get('DISABLE_PYQT', "0") == "1",
                      "Disabled OpenCV or PyQt")
+    @unittest.skipIf(platform.system() == 'Darwin',
+                     "AutoPy on macOS doesn't find the green box")
     def test_hover(self) -> None:
         self.show_application()
 
@@ -146,6 +149,8 @@ class RegionTest(unittest.TestCase):
         self.child_app = None
 
     @unittest.skipIf(os.environ.get('DISABLE_PYQT', "0") == "1", "PyQt disabled")
+    @unittest.skipIf(platform.system() == 'Darwin',
+                     "AutoPy on macOS has trouble with mouse middle click")
     def test_middle_click(self) -> None:
         self.show_application()
         self.region.middle_click(self.no_control)
@@ -174,6 +179,8 @@ class RegionTest(unittest.TestCase):
     @unittest.skipIf(os.environ.get('DISABLE_OPENCV', "0") == "1" or
                      os.environ.get('DISABLE_PYQT', "0") == "1",
                      "Disabled OpenCV or PyQt")
+    @unittest.skipIf(platform.system() == 'Darwin',
+                     "AutoPy on macOS doesn't find the green box")
     def test_click_expect(self) -> None:
         self.show_application()
         with self.assertRaises(FindError):
@@ -186,6 +193,8 @@ class RegionTest(unittest.TestCase):
     @unittest.skipIf(os.environ.get('DISABLE_OPENCV', "0") == "1" or
                      os.environ.get('DISABLE_PYQT', "0") == "1",
                      "Disabled OpenCV or PyQt")
+    @unittest.skipIf(platform.system() == 'Darwin',
+                     "AutoPy on macOS doesn't find the green box")
     def test_click_vanish(self) -> None:
         self.show_application()
         with self.assertRaises(NotFindError):
@@ -217,6 +226,8 @@ class RegionTest(unittest.TestCase):
         self.child_app = None
 
     @unittest.skipIf(os.environ.get('DISABLE_PYQT', "0") == "1", "PyQt disabled")
+    @unittest.skipIf(platform.system() == 'Darwin',
+                     "AutoPy on macOS has trouble with mouse up")
     def test_mouse_up(self) -> None:
         self.show_application()
 
@@ -305,6 +316,7 @@ class RegionTest(unittest.TestCase):
     @unittest.skipIf(os.environ.get('DISABLE_OPENCV', "0") == "1" or
                      os.environ.get('DISABLE_PYQT', "0") == "1",
                      "Disabled OpenCV or PyQt")
+    @unittest.skipIf(platform.system() == 'Darwin', "AutoPy on macOS has problem with SHIFT")
     def test_press_expect(self) -> None:
         self.show_application()
         with self.assertRaises(FindError):
@@ -317,6 +329,8 @@ class RegionTest(unittest.TestCase):
     @unittest.skipIf(os.environ.get('DISABLE_OPENCV', "0") == "1" or
                      os.environ.get('DISABLE_PYQT', "0") == "1",
                      "Disabled OpenCV or PyQt")
+    @unittest.skipIf(platform.system() == 'Darwin',
+                     "AutoPy on macOS has problem with SHIFT and doesn't find the green box")
     def test_press_vanish(self) -> None:
         self.show_application()
         with self.assertRaises(NotFindError):
@@ -327,7 +341,7 @@ class RegionTest(unittest.TestCase):
         self.close_windows()
 
     @unittest.skipIf(os.environ.get('DISABLE_PYQT', "0") == "1", "PyQt disabled")
-    @unittest.skipIf(os.name == 'nt', "AutoPy on Windows has a panic attack")
+    @unittest.skipIf(platform.system() == 'Windows', "AutoPy on Windows has a panic attack")
     def test_type_text(self) -> None:
         self.show_application()
         self.region.click(self.textedit_quit_control)
@@ -336,7 +350,7 @@ class RegionTest(unittest.TestCase):
         self.child_app = None
 
     @unittest.skipIf(os.environ.get('DISABLE_PYQT', "0") == "1", "PyQt disabled")
-    @unittest.skipIf(os.name == 'nt', "AutoPy on Windows has a panic attack")
+    @unittest.skipIf(platform.system() == 'Windows', "AutoPy on Windows has a panic attack")
     def test_type_at(self) -> None:
         self.show_application()
         self.region.type_at('quit', self.textedit_quit_control)
@@ -351,7 +365,7 @@ class RegionTest(unittest.TestCase):
         self.child_app = None
 
     @unittest.skipIf(os.environ.get('DISABLE_PYQT', "0") == "1", "PyQt disabled")
-    @unittest.skipIf(os.name == 'nt', "AutoPy on Windows has a panic attack")
+    @unittest.skipIf(platform.system() == 'Windows', "AutoPy on Windows has a panic attack")
     def test_fill_at(self) -> None:
         self.show_application()
         self.region.fill_at(self.textedit_quit_control, 'quit', 0, 0)

@@ -15,6 +15,7 @@
 # along with guibot.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import platform
 import unittest
 import time
 import shutil
@@ -76,7 +77,7 @@ class RegionTest(unittest.TestCase):
 
     def show_image(self, filename: str) -> None:
         filename = self.file_resolver.search(filename)
-        python = 'python.exe' if os.name == 'nt' else 'python3'
+        python = 'python.exe' if platform.system() == 'Windows' else 'python3'
         self.child_img = subprocess.Popen([python, self.script_img, filename])
         # HACK: avoid small variability in loading speed
         time.sleep(3)
