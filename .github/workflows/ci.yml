@@ -172,7 +172,9 @@ jobs:
 
   macos:
     name: MacOS with any available coverage
-    runs-on: macos-latest
+    # TODO: downgrade from "latest" to 14 due to MacOS 15 suddenly failing a lot of tests
+    # -> should be lifted once we add image logging artifacts to easily debug CI environment
+    runs-on: macos-14
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
