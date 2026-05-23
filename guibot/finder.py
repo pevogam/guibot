@@ -41,7 +41,6 @@ from .imagelogger import ImageLogger
 from .fileresolver import FileResolver
 from .errors import *
 
-
 log = logging.getLogger("guibot.finder")
 
 
@@ -1815,8 +1814,8 @@ class FeatureFinder(Finder):
             hkeypoints = self.detector.detect(hgray)
 
             # feature vectors (descriptors)
-            (nkeypoints, ndescriptors) = self.extractor.compute(ngray, nkeypoints)
-            (hkeypoints, hdescriptors) = self.extractor.compute(hgray, hkeypoints)
+            nkeypoints, ndescriptors = self.extractor.compute(ngray, nkeypoints)
+            hkeypoints, hdescriptors = self.extractor.compute(hgray, hkeypoints)
 
         else:
             raise UnsupportedBackendError(
@@ -2069,11 +2068,11 @@ class FeatureFinder(Finder):
         # calculate and project all point coordinates in the needle
         projected = []
         for location in locations_in_needle:
-            (ox, oy) = (location[0], location[1])
+            ox, oy = (location[0], location[1])
             orig_center_wrapped = numpy.array([[[ox, oy]]], dtype=numpy.float32)
             log.log(9, "%s %s", orig_center_wrapped.shape, H.shape)
             match_center_wrapped = cv2.perspectiveTransform(orig_center_wrapped, H)
-            (mx, my) = (match_center_wrapped[0][0][0], match_center_wrapped[0][0][1])
+            mx, my = (match_center_wrapped[0][0][0], match_center_wrapped[0][0][1])
             projected.append((int(mx), int(my)))
 
         ransac_similarity = float(len(true_matches)) / float(len(mnkp))
@@ -3101,7 +3100,7 @@ class TextFinder(ContourFinder):
                 h = min(row_data[0][col] + row_data[2][col], inp_height) * height_ratio
                 w = min(row_data[1][col] + row_data[3][col], inp_width) * width_ratio
                 # output layer dimensions are 4x smaller than the input layer dimentions
-                (dx, dy) = (col + 1) * 4.0, (row + 1) * 4.0
+                dx, dy = (col + 1) * 4.0, (row + 1) * 4.0
                 # calculate the rotation angle from the prediction output
                 sin, cos = numpy.sin(row_data[4][col]), numpy.cos(row_data[4][col])
                 # compute the starting (from ending) coordinates for the text bounding box

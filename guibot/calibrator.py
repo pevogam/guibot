@@ -37,7 +37,6 @@ from .imagelogger import ImageLogger
 from .errors import *
 from .location import Location
 
-
 log = logging.getLogger("guibot.calibrator")
 
 

@@ -30,7 +30,6 @@ from typing import Any
 
 from .errors import *
 
-
 log = logging.getLogger("guibot.config")
 
 

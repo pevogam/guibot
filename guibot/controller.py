@@ -40,7 +40,6 @@ from .target import Image
 from .location import Location
 from .errors import *
 
-
 log = logging.getLogger("guibot.controller")
 __all__ = [
     "Controller",

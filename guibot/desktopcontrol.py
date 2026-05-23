@@ -29,7 +29,6 @@ import logging
 
 from .controller import *
 
-
 logging.getLogger("guibot.desktopcontrol").warn(
     "The `desktopcontrol` module is deprecated, use `controller` instead."
 )

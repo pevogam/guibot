@@ -36,7 +36,6 @@ from .location import Location
 from .region import Region
 from .guibot import GuiBot
 
-
 # accessible attributes of this module
 guibot = None
 last_match = None

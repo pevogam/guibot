@@ -37,7 +37,6 @@ from .fileresolver import FileResolver
 from .finder import *
 from .errors import *
 
-
 __all__ = ["Target", "Image", "Text", "Pattern", "Chain"]
 
 

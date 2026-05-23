@@ -42,7 +42,6 @@ from .target import *
 from .finder import *
 from .controller import *
 
-
 log = logging.getLogger("guibot.region")
 
 

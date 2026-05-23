@@ -25,7 +25,6 @@ INTERFACE
 
 """
 
-
 from typing import Any
 
 

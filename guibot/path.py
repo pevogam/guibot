@@ -31,7 +31,6 @@ import logging
 # TODO: drop support for this module
 from .fileresolver import FileResolver as Path
 
-
 logging.getLogger("guibot.path").warn(
     "The `path` module is deprecated, use `fileresolver` instead."
 )

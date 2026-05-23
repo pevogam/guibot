@@ -25,7 +25,6 @@ INTERFACE
 
 """
 
-
 __all__ = [
     "GuiBotError",
     "FileNotFoundError",

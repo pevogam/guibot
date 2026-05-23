@@ -43,7 +43,6 @@ from .guibot import GuiBot
 from .finder import Finder
 from .controller import Controller
 
-
 log = logging.getLogger("guibot.proxy")
 
 
