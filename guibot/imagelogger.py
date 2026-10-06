@@ -151,6 +151,8 @@ class ImageLogger(object):
         The current needle and haystack (matched images) are stored
         as `needle` and `haystack` attributes.
         """
+        from .target import Chain
+
         if ImageLogger.logging_level > max_level:
             return
         if not os.path.exists(ImageLogger.logging_destination):
@@ -159,9 +161,14 @@ class ImageLogger(object):
             shutil.rmtree(ImageLogger.logging_destination)
             os.mkdir(ImageLogger.logging_destination)
 
-        needle_name = "imglog%s-1needle-%s" % (self.printable_step, str(self.needle))
-        needle_path = os.path.join(ImageLogger.logging_destination, needle_name)
-        self.needle.save(needle_path)
+        # chain steps are logged separately
+        if not isinstance(self.needle, Chain):
+            needle_name = "imglog%s-1needle-%s" % (
+                self.printable_step,
+                str(self.needle),
+            )
+            needle_path = os.path.join(ImageLogger.logging_destination, needle_name)
+            self.needle.save(needle_path)
 
         haystack_name = "imglog%s-2haystack-%s" % (
             self.printable_step,
