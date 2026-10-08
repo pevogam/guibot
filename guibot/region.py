@@ -836,6 +836,7 @@ class Region(object):
         for i in range(retries):
             if i > 0:
                 log.info("Retrying the mouse click (%s of %s)", i + 1, retries)
+            # TODO: rather extract the location and repeat clicks there instead of rematching
             self.click(click_image_or_location, modifiers=modifiers)
             try:
                 return self._unfind(expect_target, timeout)
