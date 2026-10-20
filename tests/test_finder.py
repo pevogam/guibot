@@ -1197,6 +1197,11 @@ class TextFinderTest(unittest.TestCase):
                     finder.configure_backend("pytesseract", "ocr")
                     finder.params["tdetect"]["component_level"].value = component_level
                     finder.params["find"]["similarity"].value = 1.0
+                    if image == "sentence_sans_inverted":
+                        # Exercise our normalization without Tesseract's automatic inversion.
+                        no_inversion = "-c tessedit_do_invert=0"
+                        finder.params["tdetect"]["extra_configs"].value = no_inversion
+                        finder.params["ocr"]["extra_configs"].value = no_inversion
                     finder.synchronize()
                     with patch.object(
                         finder.tbox, "image_to_data", wraps=finder.tbox.image_to_data

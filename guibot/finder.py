@@ -2921,6 +2921,9 @@ class TextFinder(ContourFinder):
                     text_img = cv2.erode(text_img, element)
                 if self.params["ocr"]["erode_dilate"].value in [1, 2]:
                     text_img = cv2.dilate(text_img, element)
+            # Use dark text on a light background for Tesseract.
+            if backend == "pytesseract" and numpy.median(text_img) < 128:
+                text_img = cv2.bitwise_not(text_img)
             self.imglog.hotmaps.append(text_img)
 
             # BUG: we hit segfault when using the BeamSearch OCR backend so disallow it
@@ -3008,6 +3011,10 @@ class TextFinder(ContourFinder):
             )
         else:
             detection_img = cv2.cvtColor(detection_img, cv2.COLOR_RGB2GRAY)
+
+        # Normalize dark backgrounds before Tesseract segments the text.
+        if numpy.median(detection_img) < 128:
+            detection_img = cv2.bitwise_not(detection_img)
 
         char_canvas = detection_img
         text_canvas = numpy.array(haystack.pil_image)
