@@ -364,6 +364,123 @@ class XDoToolKey(Key):
         self.KP_DECIMAL = None
 
 
+_YDOTOOL_CHARACTERS = {
+    char: first_code + i
+    for row, first_code in (
+        ("1234567890-=", 2),
+        ("qwertyuiop[]", 16),
+        ("asdfghjkl;'`", 30),
+        ("\\zxcvbnm,./", 43),
+    )
+    for i, char in enumerate(row)
+}
+_YDOTOOL_CHARACTERS.update({" ": 57, "\t": 15, "\n": 28})
+_YDOTOOL_SHIFTED = dict(zip('~!@#$%^&*()_+{}|:"<>?', "`1234567890-=[]\\;',./"))
+
+
+def _ydotool_keycodes(keys: list[str | int] | str | int) -> list[int]:
+    """Translate Linux key codes and US keyboard characters into a chord."""
+    keycodes = []
+    for key in [keys] if isinstance(keys, int) else keys:
+        if isinstance(key, int):
+            keycodes.append(key)
+            continue
+        if not isinstance(key, str) or len(key) != 1:
+            raise ValueError("Unsupported YDoTool key '%s'" % key)
+        character = _YDOTOOL_SHIFTED.get(key, key.lower())
+        if character not in _YDOTOOL_CHARACTERS:
+            raise ValueError("Unsupported YDoTool key '%s'" % key)
+        if (key.isupper() or key in _YDOTOOL_SHIFTED) and 42 not in keycodes:
+            keycodes.append(42)  # KEY_LEFTSHIFT
+        keycodes.append(_YDOTOOL_CHARACTERS[character])
+    return keycodes
+
+
+class YDoToolKey(Key):
+    """Helper to contain Linux input key codes for the ydotool DC backend."""
+
+    def __init__(self) -> None:
+        """Build an instance containing the key map for the ydotool backend."""
+        super().__init__()
+
+        # Codes are defined by Linux's input-event-codes.h, not X11 keysyms.
+        self.ENTER = 28
+        self.TAB = 15
+        self.ESC = 1
+        self.BACKSPACE = 14
+        self.DELETE = 111
+        self.INSERT = 110
+
+        self.CTRL = 29
+        self.ALT = 56
+        self.SHIFT = 42
+        self.META = 125
+        self.RCTRL = 97
+        self.RALT = 100
+        self.RSHIFT = 54
+        self.RMETA = 126
+
+        self.F1 = 59
+        self.F2 = 60
+        self.F3 = 61
+        self.F4 = 62
+        self.F5 = 63
+        self.F6 = 64
+        self.F7 = 65
+        self.F8 = 66
+        self.F9 = 67
+        self.F10 = 68
+        self.F11 = 87
+        self.F12 = 88
+        self.F13 = 183
+        self.F14 = 184
+        self.F15 = 185
+        self.F16 = 186
+        self.F17 = 187
+        self.F18 = 188
+        self.F19 = 189
+        self.F20 = 190
+
+        self.HOME = 102
+        self.END = 107
+        self.LEFT = 105
+        self.RIGHT = 106
+        self.UP = 103
+        self.DOWN = 108
+        self.PAGE_DOWN = 109
+        self.PAGE_UP = 104
+
+        self.CAPS_LOCK = 58
+        self.PRINTSCREEN = 99
+        self.PAUSE = 119
+        self.SCROLL_LOCK = 70
+        self.NUM_LOCK = 69
+        self.SYS_REQ = 99
+        self.SUPER = 125
+        self.RSUPER = 126
+        # Linux has no separate Hyper keys.
+        self.HYPER = None
+        self.RHYPER = None
+        self.MENU = 139
+
+        self.KP0 = 82
+        self.KP1 = 79
+        self.KP2 = 80
+        self.KP3 = 81
+        self.KP4 = 75
+        self.KP5 = 76
+        self.KP6 = 77
+        self.KP7 = 71
+        self.KP8 = 72
+        self.KP9 = 73
+        self.KP_ENTER = 96
+        self.KP_DIVIDE = 98
+        self.KP_MULTIPLY = 55
+        self.KP_SUBTRACT = 74
+        self.KP_ADD = 78
+        self.KP_DECIMAL = 83
+
+
 class VNCDoToolKey(Key):
     """Helper to contain all key mappings for the VNCDoTool DC backend."""
 
@@ -605,6 +722,20 @@ class XDoToolKeyModifier(KeyModifier):
         self.MOD_META = "meta"
 
 
+class YDoToolKeyModifier(KeyModifier):
+    """Helper to contain all modifier key mappings for the ydotool DC backend."""
+
+    def __init__(self) -> None:
+        """Build an instance containing the modifier key map for the ydotool backend."""
+        super().__init__()
+
+        self.MOD_NONE = None
+        self.MOD_CTRL = 29
+        self.MOD_ALT = 56
+        self.MOD_SHIFT = 42
+        self.MOD_META = 125
+
+
 class VNCDoToolKeyModifier(KeyModifier):
     """Helper to contain all modifier key mappings for the VNCDoTool DC backend."""
 
@@ -685,6 +816,18 @@ class XDoToolMouseButton(MouseButton):
 
         self.LEFT_BUTTON = 1
         self.RIGHT_BUTTON = 3
+        self.CENTER_BUTTON = 2
+
+
+class YDoToolMouseButton(MouseButton):
+    """Helper to contain all mouse button mappings for the ydotool DC backend."""
+
+    def __init__(self) -> None:
+        """Build an instance containing the mouse button map for the ydotool backend."""
+        super().__init__()
+
+        self.LEFT_BUTTON = 0
+        self.RIGHT_BUTTON = 1
         self.CENTER_BUTTON = 2
 
 

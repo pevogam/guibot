@@ -45,6 +45,7 @@ __all__ = [
     "Controller",
     "AutoPyController",
     "XDoToolController",
+    "YDoToolController",
     "VNCDoToolController",
     "PyAutoGUIController",
 ]
@@ -68,6 +69,7 @@ class Controller(LocalConfig):
             "autopy",
             "pyautogui",
             "xdotool",
+            "ydotool",
             "vncdotool",
         ]
 
@@ -621,7 +623,7 @@ class AutoPyController(Controller):
 
 
 class XDoToolController(Controller):
-    """Screen control backend implemented through the xdotool client and thus portable to Linux operating systems."""
+    """Legacy Linux X11 screen control backend implemented through xdotool."""
 
     def __init__(self, configure: bool = True, synchronize: bool = True) -> None:
         """Build a DC backend using XDoTool."""
@@ -846,6 +848,270 @@ class XDoToolController(Controller):
 
         if modifiers is not None:
             self.keys_toggle(modifiers, False)
+
+
+class YDoToolController(Controller):
+    """
+    Linux screen control backend implemented through ydotool and Pillow.
+
+    Input requires ydotool 1.x and a running ydotoold with access to /dev/uinput.
+    The client inherits YDOTOOL_SOCKET from the environment. Screen capture uses
+    Pillow on X11 and a native screenshot tool on Wayland. The screenshot_tool
+    parameter can select grim, gnome-screenshot, spectacle, or pillow explicitly.
+    Disable pointer acceleration for accurate absolute mouse movement.
+
+    Pointer coordinates track moves made by this controller, starting at (0, 0)
+    on synchronization; movement by other input devices cannot be queried.
+    Character keys and text typing assume a US keyboard layout and ASCII text.
+    """
+
+    def __init__(self, configure: bool = True, synchronize: bool = True) -> None:
+        """Build a DC backend using YDoTool."""
+        super(YDoToolController, self).__init__(configure=False, synchronize=False)
+        if configure:
+            self.__configure_backend(reset=True)
+        if synchronize:
+            self.__synchronize_backend(reset=False)
+
+    def __configure_backend(
+        self, backend: str = None, category: str = "ydotool", reset: bool = False
+    ) -> None:
+        if category != "ydotool":
+            raise UnsupportedBackendError(
+                "Backend category '%s' is not supported" % category
+            )
+        if reset:
+            super(YDoToolController, self).configure_backend("ydotool", reset=True)
+
+        self.params[category] = {}
+        self.params[category]["backend"] = "none"
+        self.params[category]["binary"] = "ydotool"
+        self.params[category]["screenshot_tool"] = "auto"
+
+    def configure_backend(
+        self, backend: str = None, category: str = "ydotool", reset: bool = False
+    ) -> None:
+        """
+        Generate configuration dictionary for a given backend.
+
+        See base method for details.
+        """
+        self.__configure_backend(backend, category, reset)
+
+    def __synchronize_backend(
+        self, backend: str = None, category: str = "ydotool", reset: bool = False
+    ) -> None:
+        if category != "ydotool":
+            raise UnsupportedBackendError(
+                "Backend category '%s' is not supported" % category
+            )
+        if reset:
+            super(YDoToolController, self).synchronize_backend("ydotool", reset=True)
+        if backend is not None and self.params[category]["backend"] != backend:
+            raise UninitializedBackendError(
+                "Backend '%s' has not been configured yet" % backend
+            )
+
+        import subprocess
+
+        class YDoTool(object):
+            """Run the configured ydotool client without a command shell."""
+
+            def __init__(self, dc: Controller) -> None:
+                self.dc = dc
+
+            def run(self, command: str, *args: str, input_data: bytes = None) -> str:
+                """Run a subcommand with optional literal bytes on standard input."""
+                process = [self.dc.params[category]["binary"], command, *args]
+                return subprocess.check_output(
+                    process, input=input_data, shell=False
+                ).decode()
+
+        self._backend_obj = YDoTool(self)
+        with self._capture_screen() as screen:
+            self._width, self._height = screen.size
+        self._keymap = inputmap.YDoToolKey()
+        self._modmap = inputmap.YDoToolKeyModifier()
+        self._mousemap = inputmap.YDoToolMouseButton()
+        self.mouse_move(Location(0, 0), smooth=False)
+
+    def synchronize_backend(
+        self, backend: str = None, category: str = "ydotool", reset: bool = False
+    ) -> None:
+        """
+        Synchronize a category backend with the equalizer configuration.
+
+        See base method for details.
+        """
+        self.__synchronize_backend(backend, category, reset)
+
+    def _capture_screen(self) -> PIL.Image.Image:
+        """Capture the desktop with the selected native tool or Pillow."""
+        import shutil
+        import subprocess
+        from PIL import ImageGrab
+
+        commands = {
+            "grim": ["grim", "-s", "1"],
+            "gnome-screenshot": ["gnome-screenshot", "-f"],
+            "spectacle": ["spectacle", "-n", "-b", "-f", "-o"],
+        }
+        tool = self.params["ydotool"]["screenshot_tool"]
+        if tool == "auto":
+            tool = "pillow"
+            if (
+                os.environ.get("WAYLAND_DISPLAY")
+                or os.environ.get("XDG_SESSION_TYPE") == "wayland"
+            ):
+                desktop = os.environ.get("XDG_CURRENT_DESKTOP", "").lower()
+                if "gnome" in desktop:
+                    candidates = ["gnome-screenshot", "grim", "spectacle"]
+                elif "kde" in desktop:
+                    candidates = ["spectacle", "grim", "gnome-screenshot"]
+                else:
+                    candidates = ["grim", "gnome-screenshot", "spectacle"]
+                tool = next((name for name in candidates if shutil.which(name)), None)
+                if tool is None:
+                    raise UnsupportedBackendError(
+                        "Wayland screen capture requires grim, gnome-screenshot, or spectacle"
+                    )
+        if tool == "pillow":
+            return ImageGrab.grab()
+        if tool not in commands:
+            raise UnsupportedBackendError("Unsupported screenshot tool '%s'" % tool)
+
+        with NamedTemporaryFile(prefix="guibot", suffix=".png") as f:
+            filename = f.name
+        try:
+            subprocess.check_call(commands[tool] + [filename])
+            with PIL.Image.open(filename) as screen:
+                return screen.convert("RGB")
+        finally:
+            if os.path.exists(filename):
+                os.unlink(filename)
+
+    def capture_screen(self, *args: "list[int] | Region | None") -> Image:
+        """
+        Get the current screen as image.
+
+        See base method for details.
+        """
+        xpos, ypos, width, height, _ = self._region_from_args(*args)
+        with self._capture_screen() as screen:
+            return Image(
+                "",
+                screen.crop((xpos, ypos, xpos + width, ypos + height)).convert("RGB"),
+            )
+
+    def mouse_move(self, location: Location, smooth: bool = True) -> None:
+        """
+        Move the mouse to a desired location.
+
+        See base method for details.
+        """
+        if smooth:
+            log.warning(
+                "Smooth mouse move is not supported for the YDO controller,"
+                " defaulting to instant mouse move"
+            )
+        self._backend_obj.run(
+            "mousemove", "--absolute", "-x", str(location.x), "-y", str(location.y)
+        )
+        time.sleep(0.3)
+        self._pointer = location
+
+    def mouse_click(
+        self, button: int = None, count: int = 1, modifiers: list[int] = None
+    ) -> None:
+        """
+        Click the selected mouse button N times at the current mouse location.
+
+        See base method for details.
+        """
+        self.imglog.type = "mouse"
+        self.imglog.log(30)
+        button = self._mousemap.LEFT_BUTTON if button is None else button
+        if modifiers is not None:
+            self.keys_toggle(modifiers, True)
+        try:
+            for _ in range(count):
+                self.mouse_down(button)
+                time.sleep(self.params["control"]["mouse_toggle_delay"])
+                self.mouse_up(button)
+                time.sleep(self.params["control"]["after_click_delay"])
+        finally:
+            if modifiers is not None:
+                self.keys_toggle(modifiers, False)
+
+    def mouse_down(self, button: int) -> None:
+        """
+        Hold down a mouse button.
+
+        See base method for details.
+        """
+        self._backend_obj.run("click", "--next-delay", "0", hex(button | 0x40))
+
+    def mouse_up(self, button: int) -> None:
+        """
+        Release a mouse button.
+
+        See base method for details.
+        """
+        self._backend_obj.run("click", "--next-delay", "0", hex(button | 0x80))
+
+    def mouse_scroll(self, clicks: int = 10, horizontal: bool = False) -> None:
+        """
+        Scroll the mouse for a number of clicks.
+
+        See base method for details.
+        """
+        xpos, ypos = (clicks, 0) if horizontal else (0, clicks)
+        self._backend_obj.run("mousemove", "--wheel", "-x", str(xpos), "-y", str(ypos))
+
+    def keys_toggle(self, keys: list[str | int] | str | int, up_down: bool) -> None:
+        """
+        Hold down or release together all provided keys.
+
+        Keys are Linux input codes or single US keyboard characters. Special
+        keys are available through the key map. See base method for details.
+        """
+        keycodes = inputmap._ydotool_keycodes(keys)
+        if not up_down:
+            keycodes.reverse()
+        if keycodes:
+            self._backend_obj.run(
+                "key",
+                "--key-delay",
+                "0",
+                *("%s:%i" % (key, up_down) for key in keycodes)
+            )
+
+    def keys_type(self, text: list[str] | str, modifiers: list[int] = None) -> None:
+        """
+        Type (press consecutively) all provided keys.
+
+        Only ASCII text on a US keyboard layout is supported by ydotool.
+        See base method for details.
+        """
+        typed_text = "".join(str(part) for part in text).encode("ascii")
+        self.imglog.type = "keys"
+        self.imglog.log(30)
+        time.sleep(self.params["control"]["delay_before_keys"])
+        if modifiers is not None:
+            self.keys_toggle(modifiers, True)
+        try:
+            if typed_text:
+                self._backend_obj.run(
+                    "type",
+                    "--key-delay",
+                    str(int(self.params["control"]["delay_between_keys"] * 1000)),
+                    "--file",
+                    "-",
+                    input_data=typed_text,
+                )
+        finally:
+            if modifiers is not None:
+                self.keys_toggle(modifiers, False)
 
 
 class VNCDoToolController(Controller):

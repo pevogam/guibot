@@ -122,6 +122,9 @@ class ControllerTest(unittest.TestCase):
             self.backends += [AutoPyController()]
         if os.environ.get('DISABLE_XDOTOOL', "0") == "0":
             self.backends += [XDoToolController()]
+        # ydotool needs an explicitly prepared uinput daemon and desktop session
+        if os.environ.get('DISABLE_YDOTOOL', "1") == "0":
+            self.backends += [YDoToolController()]
         if os.environ.get('DISABLE_PYAUTOGUI', "0") == "0":
             self.backends += [PyAutoGUIController()]
         if os.environ.get('DISABLE_VNCDOTOOL', "0") == "0":

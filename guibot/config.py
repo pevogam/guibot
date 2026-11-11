@@ -305,8 +305,10 @@ class GlobalConfig(type):
            * vncdotool - guest OS independent or Linux remote OS with GUI
                          actions on a remote machine through vnc and their
                          calls on a vnc client machine.
-           * xdotool - Linux X server compatible with both the GUI
+           * xdotool - legacy Linux X server compatible with both the GUI
                        actions and their calls executed on the same machine.
+           * ydotool - Linux X11 and Wayland input through ydotoold, with
+                       screenshots provided by Pillow on the same machine.
            * qemu - guest OS independent with GUI actions on a virtual machine
                     through Qemu Monitor object (provided by Autotest) and
                     their calls on the host machine.
@@ -317,7 +319,14 @@ class GlobalConfig(type):
         if value is None:
             return cls._display_control_backend
         else:
-            if value not in ["autopy", "xdotool", "vncdotool", "qemu", "pyautogui"]:
+            if value not in [
+                "autopy",
+                "xdotool",
+                "ydotool",
+                "vncdotool",
+                "qemu",
+                "pyautogui",
+            ]:
                 raise ValueError("Unsupported backend for GUI actions '%s'" % value)
             cls._display_control_backend = value
             return None

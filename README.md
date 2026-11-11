@@ -34,7 +34,25 @@ Supported Display Controller (DC) backends are based on
 - [AutoPy](https://github.com/autopilot-rs/autopy)
 - [PyAutoGUI](https://github.com/asweigart/pyautogui)
 - [VNCDoTool](https://github.com/sibson/vncdotool)
-- [XDoTool](https://www.semicomplete.com/projects/xdotool)
+- [XDoTool](https://www.semicomplete.com/projects/xdotool) (legacy X11)
+- [YDoTool](https://github.com/ReimuNotMoe/ydotool) (Linux X11 and Wayland input)
+
+Select YDoTool with `GlobalConfig.display_control_backend = "ydotool"` or pass a
+`YDoToolController` directly to a region. Install ydotool 1.x and run `ydotoold`
+with access to `/dev/uinput`; the client must have permission to connect to its
+socket (set `YDOTOOL_SOCKET` if needed). Screenshots use Pillow on X11 and
+select `gnome-screenshot`, `spectacle`, or `grim` directly on Wayland, preferring
+the tool for the current desktop. Install a tool supported by your compositor.
+For explicit selection, create `controller = YDoToolController(synchronize=False)`, set
+`controller.params["ydotool"]["screenshot_tool"]` to `gnome-screenshot`,
+`spectacle`, `grim`, or `pillow` (the default is `auto`), then call
+`controller.synchronize_backend()`. Grim captures at scale 1 to match layout
+coordinates. Disable pointer acceleration for accurate absolute movement.
+Mouse coordinates track controller moves only,
+starting at `(0, 0)` on initialization. Text typing supports ASCII with a US
+keyboard layout.
+Enable the existing controller integration tests with `DISABLE_YDOTOOL=0` in a
+prepared desktop session.
 
 ## Further resources
 

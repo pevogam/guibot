@@ -82,6 +82,8 @@ class Region(object):
                 dc = AutoPyController()
             elif GlobalConfig.display_control_backend == "xdotool":
                 dc = XDoToolController()
+            elif GlobalConfig.display_control_backend == "ydotool":
+                dc = YDoToolController()
             elif GlobalConfig.display_control_backend == "vncdotool":
                 dc = VNCDoToolController()
             elif GlobalConfig.display_control_backend == "pyautogui":
@@ -706,7 +708,10 @@ class Region(object):
         match = self.hover(target_or_location)
         log.info("Clicking at %s", target_or_location)
         if modifiers is not None:
-            log.info("Holding the modifiers %s", " ".join(modifiers))
+            log.info(
+                "Holding the modifiers %s",
+                " ".join(str(modifier) for modifier in modifiers),
+            )
         self.dc_backend.mouse_click(self.LEFT_BUTTON, 1, modifiers)
         return match
 
@@ -725,7 +730,10 @@ class Region(object):
         match = self.hover(target_or_location)
         log.info("Right clicking at %s", target_or_location)
         if modifiers is not None:
-            log.info("Holding the modifiers %s", " ".join(modifiers))
+            log.info(
+                "Holding the modifiers %s",
+                " ".join(str(modifier) for modifier in modifiers),
+            )
         self.dc_backend.mouse_click(self.RIGHT_BUTTON, 1, modifiers)
         return match
 
@@ -744,7 +752,10 @@ class Region(object):
         match = self.hover(target_or_location)
         log.info("Right clicking at %s", target_or_location)
         if modifiers is not None:
-            log.info("Holding the modifiers %s", " ".join(modifiers))
+            log.info(
+                "Holding the modifiers %s",
+                " ".join(str(modifier) for modifier in modifiers),
+            )
         self.dc_backend.mouse_click(self.CENTER_BUTTON, 1, modifiers)
         return match
 
@@ -761,7 +772,10 @@ class Region(object):
         match = self.hover(target_or_location)
         log.info("Double clicking at %s", target_or_location)
         if modifiers is not None:
-            log.info("Holding the modifiers %s", " ".join(modifiers))
+            log.info(
+                "Holding the modifiers %s",
+                " ".join(str(modifier) for modifier in modifiers),
+            )
         self.dc_backend.mouse_click(self.LEFT_BUTTON, 2, modifiers)
         return match
 
@@ -781,7 +795,10 @@ class Region(object):
         match = self.hover(target_or_location)
         log.info("Clicking %s times at %s", count, target_or_location)
         if modifiers is not None:
-            log.info("Holding the modifiers %s", " ".join(modifiers))
+            log.info(
+                "Holding the modifiers %s",
+                " ".join(str(modifier) for modifier in modifiers),
+            )
         self.dc_backend.mouse_click(self.LEFT_BUTTON, count, modifiers)
         return match
 
@@ -996,7 +1013,10 @@ class Region(object):
 
         time.sleep(0.2)
         if modifiers is not None:
-            log.info("Holding the modifiers %s", " ".join(modifiers))
+            log.info(
+                "Holding the modifiers %s",
+                " ".join(str(modifier) for modifier in modifiers),
+            )
             self.dc_backend.keys_toggle(modifiers, True)
             # self.dc_backend.keys_toggle(["Ctrl"], True)
 
@@ -1025,7 +1045,10 @@ class Region(object):
 
         time.sleep(0.5)
         if modifiers is not None:
-            log.info("Holding the modifiers %s", " ".join(modifiers))
+            log.info(
+                "Holding the modifiers %s",
+                " ".join(str(modifier) for modifier in modifiers),
+            )
             self.dc_backend.keys_toggle(modifiers, False)
 
         return match
@@ -1164,12 +1187,14 @@ class Region(object):
                     raise error
         return self
 
-    def type_text(self, text: list[str] | str, modifiers: list[str] = None) -> "Region":
+    def type_text(
+        self, text: list[str] | str, modifiers: list[str | int] | str | int = None
+    ) -> "Region":
         """
         Type a list of consecutive character keys (without special keys).
 
         :param text: characters or strings (independent of the backend)
-        :param modifiers: special keys to hold during typing
+        :param modifiers: a special key or list of keys to hold during typing
                          (see :py:class:`inputmap.KeyModifier` for extensive list)
         :returns: self
 
@@ -1185,9 +1210,12 @@ class Region(object):
         """
         text_list = self._parse_text(text)
         if modifiers is not None:
-            if isinstance(modifiers, str):
+            if isinstance(modifiers, (str, int)):
                 modifiers = [modifiers]
-            log.info("Holding the modifiers '%s'", "'+'".join(modifiers))
+            log.info(
+                "Holding the modifiers '%s'",
+                "'+'".join(str(modifier) for modifier in modifiers),
+            )
         self.dc_backend.keys_type(text_list, modifiers)
         return self
 
@@ -1195,7 +1223,7 @@ class Region(object):
         self,
         text: list[str] | str,
         target_or_location: "Match | Location | str | Target",
-        modifiers: list[str] = None,
+        modifiers: list[str | int] | str | int = None,
     ) -> "Match":
         """
         Type a list of consecutive keys at a specified target or location.
@@ -1210,9 +1238,12 @@ class Region(object):
         if target_or_location is not None:
             match = self.click(target_or_location)
         if modifiers is not None:
-            if isinstance(modifiers, str):
+            if isinstance(modifiers, (str, int)):
                 modifiers = [modifiers]
-            log.info("Holding the modifiers '%s'", "'+'".join(modifiers))
+            log.info(
+                "Holding the modifiers '%s'",
+                "'+'".join(str(modifier) for modifier in modifiers),
+            )
         self.dc_backend.keys_type(text_list, modifiers)
         return match
 
