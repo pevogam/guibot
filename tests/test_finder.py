@@ -623,8 +623,9 @@ class FinderTest(unittest.TestCase):
         i = 1
 
         for tdetect in finder.algorithms["text_detectors"]:
-            # TODO: this is still not implemented
-            if tdetect == "components":
+            # Components are incomplete; regions have dedicated coverage below
+            # because their OCR boxes intentionally differ from text boxes.
+            if tdetect in ["components", "regions"]:
                 continue
             for ocr in finder.algorithms["text_recognizers"]:
                 # TODO: this is still not implemented
@@ -703,8 +704,9 @@ class FinderTest(unittest.TestCase):
         i = 1
 
         for tdetect in finder.algorithms["text_detectors"]:
-            # TODO: this is still not implemented
-            if tdetect == "components":
+            # Components are incomplete; regions have dedicated coverage below
+            # because their OCR boxes intentionally differ from text boxes.
+            if tdetect in ["components", "regions"]:
                 continue
             for ocr in finder.algorithms["text_recognizers"]:
                 # TODO: this is still not implemented
@@ -1059,6 +1061,83 @@ class TextFinderTest(unittest.TestCase):
         self.logdir = tempfile.TemporaryDirectory()
         self.addCleanup(self.logdir.cleanup)
         self.logpath = self.logdir.name
+
+    @unittest.skipIf(os.environ.get("DISABLE_OPENCV", "0") == "1", "OpenCV disabled")
+    def test_text_region_backend(self) -> None:
+        """Check configuration and complete non-overlapping region coverage."""
+        finder = TextFinder(synchronize=False)
+        self.assertIn("regions", finder.algorithms["text_detectors"])
+        finder.configure_backend("regions", "tdetect")
+        finder.synchronize_backend("regions", "tdetect")
+
+        self.assertEqual(finder.params["tdetect"]["min_width"].value, 20)
+        self.assertEqual(finder.params["tdetect"]["gradient_support"].value, 0.70)
+        import numpy
+
+        haystack = Image("all_shapes")
+        image = numpy.array(haystack.pil_image)
+        proposals = finder._detect_rectangle_proposals(image)
+        leaves = finder._partition_atomic_regions(image, proposals)
+
+        self.assertGreater(len(leaves), 1)
+        self.assertEqual(
+            sum(width * height for _, _, width, height in leaves),
+            haystack.width * haystack.height,
+        )
+        for index, (x1, y1, width1, height1) in enumerate(leaves):
+            for x2, y2, width2, height2 in leaves[index + 1 :]:
+                intersection_width = max(0, min(x1 + width1, x2 + width2) - max(x1, x2))
+                intersection_height = max(
+                    0, min(y1 + height1, y2 + height2) - max(y1, y2)
+                )
+                self.assertEqual(intersection_width * intersection_height, 0)
+
+        with patch.object(
+            finder,
+            "_detect_color_rectangles",
+            wraps=finder._detect_color_rectangles,
+        ) as detect_colors:
+            regions = finder._detect_text_regions(haystack)
+        detect_colors.assert_called_once()
+        self.assertGreaterEqual(len(regions), len(leaves))
+        self.assertEqual(len(finder.imglog.hotmaps), 2)
+
+        overlay_image = numpy.zeros((100, 100, 3), dtype=numpy.uint8)
+        base_regions = [(0, 0, 50, 100), (50, 0, 50, 100)]
+        with patch.object(
+            finder,
+            "_detect_color_rectangles",
+            return_value=[(25, 20, 50, 20), (0, 0, 100, 100)],
+        ):
+            self.assertEqual(
+                finder._detect_crossing_color_overlays(overlay_image, base_regions),
+                [(25, 20, 50, 20)],
+            )
+
+    @unittest.skipIf(os.environ.get("DISABLE_OPENCV", "0") == "1", "OpenCV disabled")
+    def test_text_region_matching(self) -> None:
+        """Check atomic regions are passed through the normal OCR pipeline."""
+        finder = TextFinder(synchronize=False)
+        finder.configure_backend("regions", "tdetect")
+        finder.configure_backend("pytesseract", "ocr")
+        finder.ocr = Mock()
+        finder.ocr.image_to_string.return_value = "Find the word here"
+        finder.ocr_config = ""
+        finder.imglog.dump_matched_images = Mock()
+        finder.imglog.log = Mock()
+
+        matches = finder.find(Text("Find the word here"), Image("sentence_sans"))
+
+        self.assertEqual(len(matches), 1)
+        self.assertEqual(
+            (matches[0].x, matches[0].y, matches[0].width, matches[0].height),
+            (0, 0, 140, 40),
+        )
+        finder.ocr.image_to_string.assert_called_once()
+
+        finder.configure_backend("hmm", "ocr")
+        with self.assertRaises(NotImplementedError):
+            finder.find(Text("Find the word here"), Image("sentence_sans"))
 
     @unittest.skipIf(os.environ.get("DISABLE_OPENCV", "0") == "1", "OpenCV disabled")
     def test_text_segment_line_removal(self) -> None:

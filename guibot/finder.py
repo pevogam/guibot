@@ -2249,7 +2249,7 @@ class TextFinder(ContourFinder):
 
     This matcher will find a text (string) needle in the haystack,
     eventually relying on Tesseract or simpler kNN-based OCR,
-    using extremal regions or contours before recognition, and
+    using atomic GUI regions, extremal regions, or contours before recognition, and
     returning a match if the string is among the recognized strings
     using string metric similar to Hamming distance.
 
@@ -2270,6 +2270,7 @@ class TextFinder(ContourFinder):
         self.algorithms["text_matchers"] = ("mixed",)
         self.algorithms["text_detectors"] = (
             "pytesseract",
+            "regions",
             "east",
             "erstat",
             "contours",
@@ -2377,6 +2378,36 @@ class TextFinder(ContourFinder):
                 )
                 self.params[category]["segment_line_max_vertical"] = CVParameter(
                     32, 0, None, 1.0
+                )
+            elif backend == "regions":
+                # minimum dimensions and area of a useful OCR region
+                self.params[category]["min_width"] = CVParameter(20, 1, None, 10.0)
+                self.params[category]["min_height"] = CVParameter(14, 1, None, 10.0)
+                self.params[category]["min_area"] = CVParameter(400, 1, None, 100.0)
+                # minimum fraction of a proposed rectangle covered by each side
+                self.params[category]["side_support"] = CVParameter(
+                    0.45, 0.0, 1.0, 0.1, 0.01
+                )
+                # quantized-color component detection controls
+                self.params[category]["color_step"] = CVParameter(8, 1, 255, 16.0, 1.0)
+                self.params[category]["color_minimum_fill"] = CVParameter(
+                    0.60, 0.0, 1.0, 0.1, 0.01
+                )
+                # recursive atomic-region partition controls
+                self.params[category]["color_difference"] = CVParameter(
+                    10, 1, 255, 16.0, 1.0
+                )
+                self.params[category]["gradient_support"] = CVParameter(
+                    0.70, 0.0, 1.0, 0.1, 0.01
+                )
+                self.params[category]["proposal_support"] = CVParameter(
+                    0.55, 0.0, 1.0, 0.1, 0.01
+                )
+                self.params[category]["maximum_depth"] = CVParameter(
+                    16, 1, 64, 8.0, 1.0
+                )
+                self.params[category]["maximum_overlay_area"] = CVParameter(
+                    0.25, 0.0, 1.0, 0.1, 0.01
                 )
             elif backend == "east":
                 # network input dimensions - must be divisible by 32, however currently only
@@ -2809,6 +2840,14 @@ class TextFinder(ContourFinder):
 
         See base method for details.
         """
+        if (
+            self.params["tdetect"]["backend"] == "regions"
+            and self.params["ocr"]["backend"] == "hmm"
+        ):
+            raise NotImplementedError(
+                "Region text detection is incompatible with HMM recognition"
+            )
+
         needle.match_settings = self
         needle.use_own_settings = True
         self.imglog.needle = needle
@@ -2827,6 +2866,8 @@ class TextFinder(ContourFinder):
         log.debug("Detecting text with %s", backend)
         if backend == "pytesseract":
             text_regions = self._detect_text_boxes(haystack)
+        elif backend == "regions":
+            text_regions = self._detect_text_regions(haystack)
         elif backend == "east":
             text_regions = self._detect_text_east(haystack)
         elif backend == "erstat":
@@ -3522,21 +3563,616 @@ class TextFinder(ContourFinder):
         # myblobs.filter_blobs(325, 2000)
         # blob_count = myblobs.GetNumBlobs()
 
-    def _detect_rectangle_shapes(self, image: "Array") -> list[dict[str, object]]:
-        """Detect geometric and color-based rectangular region proposals.
+    @staticmethod
+    def _rectangle_side_support(
+        horizontal: "Array",
+        vertical: "Array",
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        tolerance: int = 3,
+    ) -> tuple[float, float, float, float]:
+        """Return detected-line coverage for the four sides of a rectangle."""
+        import numpy
 
-        This temporarily delegates to the fifth detector in the standalone
-        rectangle experiment.  That detector combines method 4's line and
-        contour geometry with quantized-color connected components, removing
-        only near-duplicate proposals while retaining useful nested regions.
+        if horizontal.shape != vertical.shape:
+            raise ValueError("Horizontal and vertical masks must have equal shapes")
+        if width <= 0 or height <= 0:
+            return 0.0, 0.0, 0.0, 0.0
 
-        Keeping the import local avoids loading the experimental OpenCV module
-        unless rectangle detection is requested.  The implementation should
-        move into the package when rectangle-guided OCR is fully integrated.
-        """
-        from experiment_find_rectangles import find_rectangles5
+        image_height, image_width = horizontal.shape[:2]
+        x_start, x_end = max(x, 0), min(x + width, image_width)
+        y_start, y_end = max(y, 0), min(y + height, image_height)
+        horizontal_span = x_end - x_start
+        vertical_span = y_end - y_start
+        if horizontal_span <= 0 or vertical_span <= 0:
+            return 0.0, 0.0, 0.0, 0.0
 
-        return find_rectangles5(image)
+        def horizontal_support(expected_y: int) -> float:
+            first_row = max(expected_y - tolerance, 0)
+            last_row = min(expected_y + tolerance + 1, image_height)
+            return max(
+                (
+                    numpy.count_nonzero(horizontal[row, x_start:x_end])
+                    / horizontal_span
+                    for row in range(first_row, last_row)
+                ),
+                default=0.0,
+            )
+
+        def vertical_support(expected_x: int) -> float:
+            first_column = max(expected_x - tolerance, 0)
+            last_column = min(expected_x + tolerance + 1, image_width)
+            return max(
+                (
+                    numpy.count_nonzero(vertical[y_start:y_end, column]) / vertical_span
+                    for column in range(first_column, last_column)
+                ),
+                default=0.0,
+            )
+
+        return (
+            horizontal_support(y),
+            horizontal_support(y + height - 1),
+            vertical_support(x),
+            vertical_support(x + width - 1),
+        )
+
+    @staticmethod
+    def _remove_duplicate_rectangles(
+        rectangles: list[tuple[int, int, int, int]],
+        iou_threshold: float = 0.85,
+        edge_tolerance: int = 3,
+    ) -> list[tuple[int, int, int, int]]:
+        """Remove repeated inner and outer contours of the same rectangle."""
+        candidates = sorted(
+            set(rectangles),
+            key=lambda rectangle: (
+                -(rectangle[2] * rectangle[3]),
+                rectangle[1],
+                rectangle[0],
+                rectangle[2],
+                rectangle[3],
+            ),
+        )
+        unique = []
+
+        for candidate in candidates:
+            x1, y1, width1, height1 = candidate
+            right1, bottom1 = x1 + width1, y1 + height1
+            area1 = width1 * height1
+
+            for x2, y2, width2, height2 in unique:
+                right2, bottom2 = x2 + width2, y2 + height2
+                matching_edges = (
+                    abs(x1 - x2) <= edge_tolerance
+                    and abs(y1 - y2) <= edge_tolerance
+                    and abs(right1 - right2) <= edge_tolerance
+                    and abs(bottom1 - bottom2) <= edge_tolerance
+                )
+                intersection_width = max(0, min(right1, right2) - max(x1, x2))
+                intersection_height = max(0, min(bottom1, bottom2) - max(y1, y2))
+                intersection = intersection_width * intersection_height
+                union = area1 + width2 * height2 - intersection
+                if matching_edges or (union and intersection / union >= iou_threshold):
+                    break
+            else:
+                unique.append(candidate)
+
+        return sorted(unique, key=lambda rectangle: (rectangle[1], rectangle[0]))
+
+    def _detect_bordered_rectangles(
+        self, image: "Array"
+    ) -> list[tuple[int, int, int, int]]:
+        """Detect closed rectangles from directional edge masks."""
+        import cv2
+
+        gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        gray = cv2.GaussianBlur(gray, (3, 3), 0)
+        edges = cv2.Canny(gray, 30, 100)
+        image_height, image_width = gray.shape
+
+        horizontal_length = max(15, image_width // 60)
+        vertical_length = max(12, image_height // 60)
+        horizontal = cv2.morphologyEx(
+            edges,
+            cv2.MORPH_CLOSE,
+            cv2.getStructuringElement(cv2.MORPH_RECT, (7, 1)),
+        )
+        horizontal = cv2.morphologyEx(
+            horizontal,
+            cv2.MORPH_OPEN,
+            cv2.getStructuringElement(cv2.MORPH_RECT, (horizontal_length, 1)),
+        )
+        vertical = cv2.morphologyEx(
+            edges,
+            cv2.MORPH_CLOSE,
+            cv2.getStructuringElement(cv2.MORPH_RECT, (1, 7)),
+        )
+        vertical = cv2.morphologyEx(
+            vertical,
+            cv2.MORPH_OPEN,
+            cv2.getStructuringElement(cv2.MORPH_RECT, (1, vertical_length)),
+        )
+
+        line_mask = cv2.bitwise_or(horizontal, vertical)
+        contours, _ = cv2.findContours(
+            line_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
+        )
+        minimum_width = self.params["tdetect"]["min_width"].value
+        minimum_height = self.params["tdetect"]["min_height"].value
+        minimum_area = self.params["tdetect"]["min_area"].value
+        minimum_support = self.params["tdetect"]["side_support"].value
+        rectangles = []
+
+        for contour in contours:
+            x, y, width, height = cv2.boundingRect(contour)
+            if (
+                width < minimum_width
+                or height < minimum_height
+                or width * height < minimum_area
+            ):
+                continue
+            support = self._rectangle_side_support(
+                horizontal, vertical, x, y, width, height
+            )
+            if min(support) >= minimum_support:
+                rectangles.append((x, y, width, height))
+
+        return self._remove_duplicate_rectangles(rectangles)
+
+    @staticmethod
+    def _merge_collinear_segments(
+        segments: list[tuple[int, int, int]],
+        axis_tolerance: int = 2,
+        gap_tolerance: int = 5,
+    ) -> list[tuple[int, int, int]]:
+        """Merge overlapping line segments on approximately the same axis."""
+        import numpy
+
+        groups: list[dict[str, Any]] = []
+        for axis, start, end in sorted(segments):
+            candidates = []
+            for index, group in enumerate(groups):
+                if abs(axis - group["axis"]) > axis_tolerance:
+                    continue
+                if start > group["end"] + gap_tolerance:
+                    continue
+                if end < group["start"] - gap_tolerance:
+                    continue
+                overlap = max(
+                    0, min(end, group["end"]) - max(start, group["start"]) + 1
+                )
+                candidates.append((overlap, -abs(axis - group["axis"]), index))
+
+            if not candidates:
+                groups.append(
+                    {"axes": [axis], "axis": axis, "start": start, "end": end}
+                )
+                continue
+
+            group = groups[max(candidates)[2]]
+            group["axes"].append(axis)
+            group["axis"] = int(round(numpy.median(group["axes"])))
+            group["start"] = min(group["start"], start)
+            group["end"] = max(group["end"], end)
+
+        return [(group["axis"], group["start"], group["end"]) for group in groups]
+
+    def _detect_line_rectangles(
+        self, image: "Array"
+    ) -> list[tuple[int, int, int, int]]:
+        """Pair line segments to recover atomic cells with shared borders."""
+        import cv2
+        import numpy
+
+        gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        gray = cv2.GaussianBlur(gray, (3, 3), 0)
+        image_height, image_width = gray.shape
+        horizontal_minimum = max(15, image_width // 100)
+        vertical_minimum = max(12, image_height // 100)
+        detector = cv2.createLineSegmentDetector(cv2.LSD_REFINE_STD)
+        detected = detector.detect(gray)[0]
+        horizontal_segments = []
+        vertical_segments = []
+
+        if detected is not None:
+            for x1, y1, x2, y2 in detected[:, 0]:
+                dx, dy = abs(x2 - x1), abs(y2 - y1)
+                if dx >= horizontal_minimum and dy <= max(1.5, 0.04 * dx):
+                    horizontal_segments.append(
+                        (
+                            int(round((y1 + y2) / 2)),
+                            int(round(min(x1, x2))),
+                            int(round(max(x1, x2))),
+                        )
+                    )
+                elif dy >= vertical_minimum and dx <= max(1.5, 0.04 * dy):
+                    vertical_segments.append(
+                        (
+                            int(round((x1 + x2) / 2)),
+                            int(round(min(y1, y2))),
+                            int(round(max(y1, y2))),
+                        )
+                    )
+
+        horizontal_segments = sorted(
+            self._merge_collinear_segments(horizontal_segments)
+        )
+        vertical_segments = sorted(self._merge_collinear_segments(vertical_segments))
+        horizontal_mask = numpy.zeros_like(gray)
+        vertical_mask = numpy.zeros_like(gray)
+        for y, x1, x2 in horizontal_segments:
+            cv2.line(horizontal_mask, (x1, y), (x2, y), 255, 1)
+        for x, y1, y2 in vertical_segments:
+            cv2.line(vertical_mask, (x, y1), (x, y2), 255, 1)
+
+        minimum_width = self.params["tdetect"]["min_width"].value
+        minimum_height = self.params["tdetect"]["min_height"].value
+        minimum_area = self.params["tdetect"]["min_area"].value
+        minimum_support = self.params["tdetect"]["side_support"].value
+        corner_tolerance = 4
+        rectangles = []
+
+        for index, top in enumerate(horizontal_segments):
+            top_y, top_x1, top_x2 = top
+            for bottom_y, bottom_x1, bottom_x2 in horizontal_segments[index + 1 :]:
+                height = bottom_y - top_y + 1
+                if height < minimum_height:
+                    continue
+                overlap_left = max(top_x1, bottom_x1)
+                overlap_right = min(top_x2, bottom_x2)
+                if overlap_right - overlap_left + 1 < minimum_width:
+                    continue
+
+                supporting_verticals = [
+                    segment
+                    for segment in vertical_segments
+                    if overlap_left - corner_tolerance
+                    <= segment[0]
+                    <= overlap_right + corner_tolerance
+                    and segment[1] <= top_y + corner_tolerance
+                    and segment[2] >= bottom_y - corner_tolerance
+                ]
+                for left, right in zip(supporting_verticals, supporting_verticals[1:]):
+                    left_x, right_x = left[0], right[0]
+                    width = right_x - left_x + 1
+                    if width < minimum_width or width * height < minimum_area:
+                        continue
+                    if not (
+                        top_x1 - corner_tolerance <= left_x
+                        and top_x2 + corner_tolerance >= right_x
+                        and bottom_x1 - corner_tolerance <= left_x
+                        and bottom_x2 + corner_tolerance >= right_x
+                    ):
+                        continue
+                    if any(
+                        top_y + corner_tolerance
+                        < segment[0]
+                        < bottom_y - corner_tolerance
+                        and segment[1] <= left_x + corner_tolerance
+                        and segment[2] >= right_x - corner_tolerance
+                        for segment in horizontal_segments
+                    ):
+                        continue
+                    support = self._rectangle_side_support(
+                        horizontal_mask,
+                        vertical_mask,
+                        left_x,
+                        top_y,
+                        width,
+                        height,
+                    )
+                    if min(support) >= minimum_support:
+                        rectangles.append((left_x, top_y, width, height))
+
+        return self._remove_duplicate_rectangles(
+            self._detect_bordered_rectangles(image) + rectangles
+        )
+
+    def _detect_color_rectangles(
+        self, image: "Array"
+    ) -> list[tuple[int, int, int, int]]:
+        """Detect rectangular connected regions of approximately one color."""
+        import cv2
+        import numpy
+
+        image_height, image_width = image.shape[:2]
+        color_step = self.params["tdetect"]["color_step"].value
+        minimum_fill = self.params["tdetect"]["color_minimum_fill"].value
+        minimum_area = self.params["tdetect"]["min_area"].value
+        minimum_width = self.params["tdetect"]["min_width"].value
+        minimum_height = self.params["tdetect"]["min_height"].value
+        color_levels = 255 // color_step + 1
+        quantized = image.astype(numpy.uint16) // color_step
+        color_codes = (
+            quantized[:, :, 0].astype(numpy.uint32)
+            + color_levels * quantized[:, :, 1].astype(numpy.uint32)
+            + color_levels * color_levels * quantized[:, :, 2].astype(numpy.uint32)
+        )
+        colors, color_counts = numpy.unique(color_codes, return_counts=True)
+        rectangles = []
+
+        for color, color_count in zip(colors, color_counts):
+            if color_count < minimum_area:
+                continue
+            color_mask = numpy.uint8(color_codes == color) * 255
+            component_count, _, component_stats, _ = cv2.connectedComponentsWithStats(
+                color_mask, connectivity=8
+            )
+            for component in range(1, component_count):
+                x, y, width, height, area = map(int, component_stats[component])
+                bounding_area = width * height
+                if (
+                    width < minimum_width
+                    or height < minimum_height
+                    or bounding_area < minimum_area
+                    or bounding_area > 0.98 * image_width * image_height
+                    or area / bounding_area < minimum_fill
+                ):
+                    continue
+                rectangles.append((x, y, width, height))
+
+        return rectangles
+
+    def _detect_rectangle_proposals(
+        self,
+        image: "Array",
+        color_rectangles: list[tuple[int, int, int, int]] | None = None,
+    ) -> list[tuple[int, int, int, int]]:
+        """Combine border, shared-edge, and color rectangle proposals."""
+        if color_rectangles is None:
+            color_rectangles = self._detect_color_rectangles(image)
+        return self._remove_duplicate_rectangles(
+            self._detect_line_rectangles(image) + color_rectangles,
+            iou_threshold=0.80,
+            edge_tolerance=4,
+        )
+
+    @staticmethod
+    def _separator_groups(
+        scores: "Array", threshold: float, minimum: int, maximum: int
+    ) -> list["Array"]:
+        """Group neighboring separator pixels into boundary candidates."""
+        import numpy
+
+        positions = numpy.flatnonzero(scores >= threshold) + 1
+        positions = positions[(positions >= minimum) & (positions <= maximum)]
+        if positions.size == 0:
+            return []
+        group_starts = numpy.flatnonzero(numpy.diff(positions) > 2) + 1
+        return list(numpy.split(positions, group_starts))
+
+    def _partition_atomic_regions(
+        self,
+        image: "Array",
+        proposals: list[tuple[int, int, int, int]],
+    ) -> list[tuple[int, int, int, int]]:
+        """Recursively partition an image into small non-overlapping regions."""
+        import cv2
+        import numpy
+
+        image_height, image_width = image.shape[:2]
+        lab = cv2.cvtColor(image, cv2.COLOR_RGB2LAB).astype(numpy.int16)
+        color_difference = self.params["tdetect"]["color_difference"].value
+        gradient_support = self.params["tdetect"]["gradient_support"].value
+        proposal_support = self.params["tdetect"]["proposal_support"].value
+        minimum_width = self.params["tdetect"]["min_width"].value
+        minimum_height = self.params["tdetect"]["min_height"].value
+        maximum_depth = self.params["tdetect"]["maximum_depth"].value
+        leaves = []
+
+        def add_gradient_candidates(
+            region: "Array", candidates: list[tuple[float, float, str, int]]
+        ) -> None:
+            height, width = region.shape[:2]
+            if width >= 2 * minimum_width:
+                differences = numpy.max(numpy.abs(numpy.diff(region, axis=1)), axis=2)
+                support = numpy.mean(differences >= color_difference, axis=0)
+                strength = numpy.mean(differences, axis=0)
+                for group in self._separator_groups(
+                    support,
+                    gradient_support,
+                    minimum_width,
+                    width - minimum_width,
+                ):
+                    position = int(group[numpy.argmax(support[group - 1])])
+                    candidates.append(
+                        (
+                            float(support[position - 1]),
+                            float(strength[position - 1]),
+                            "vertical",
+                            position,
+                        )
+                    )
+
+            if height >= 2 * minimum_height:
+                differences = numpy.max(numpy.abs(numpy.diff(region, axis=0)), axis=2)
+                support = numpy.mean(differences >= color_difference, axis=1)
+                strength = numpy.mean(differences, axis=1)
+                for group in self._separator_groups(
+                    support,
+                    gradient_support,
+                    minimum_height,
+                    height - minimum_height,
+                ):
+                    position = int(group[numpy.argmax(support[group - 1])])
+                    candidates.append(
+                        (
+                            float(support[position - 1]),
+                            float(strength[position - 1]),
+                            "horizontal",
+                            position,
+                        )
+                    )
+
+        def add_proposal_candidates(
+            x: int,
+            y: int,
+            width: int,
+            height: int,
+            candidates: list[tuple[float, float, str, int]],
+        ) -> None:
+            for proposal_x, proposal_y, proposal_width, proposal_height in proposals:
+                overlap_x = max(
+                    0,
+                    min(x + width, proposal_x + proposal_width) - max(x, proposal_x),
+                )
+                overlap_y = max(
+                    0,
+                    min(y + height, proposal_y + proposal_height) - max(y, proposal_y),
+                )
+                vertical_support = overlap_y / height
+                if vertical_support >= proposal_support:
+                    for edge in (proposal_x, proposal_x + proposal_width):
+                        position = edge - x
+                        if minimum_width <= position <= width - minimum_width:
+                            candidates.append(
+                                (vertical_support, 0.0, "vertical", position)
+                            )
+                horizontal_support = overlap_x / width
+                if horizontal_support >= proposal_support:
+                    for edge in (proposal_y, proposal_y + proposal_height):
+                        position = edge - y
+                        if minimum_height <= position <= height - minimum_height:
+                            candidates.append(
+                                (horizontal_support, 0.0, "horizontal", position)
+                            )
+
+        def subdivide(x: int, y: int, width: int, height: int, depth: int) -> None:
+            if depth >= maximum_depth:
+                leaves.append((x, y, width, height))
+                return
+            candidates = []
+            add_gradient_candidates(lab[y : y + height, x : x + width], candidates)
+            add_proposal_candidates(x, y, width, height, candidates)
+            if not candidates:
+                leaves.append((x, y, width, height))
+                return
+
+            _, _, axis, position = max(candidates, key=lambda candidate: candidate[:2])
+            if axis == "vertical":
+                subdivide(x, y, position, height, depth + 1)
+                subdivide(x + position, y, width - position, height, depth + 1)
+            else:
+                subdivide(x, y, width, position, depth + 1)
+                subdivide(x, y + position, width, height - position, depth + 1)
+
+        subdivide(0, 0, image_width, image_height, 0)
+        return leaves
+
+    def _detect_crossing_color_overlays(
+        self,
+        image: "Array",
+        leaves: list[tuple[int, int, int, int]],
+        color_rectangles: list[tuple[int, int, int, int]] | None = None,
+    ) -> list[tuple[int, int, int, int]]:
+        """Restore small color regions which cross the base partition."""
+        maximum_area = (
+            self.params["tdetect"]["maximum_overlay_area"].value
+            * image.shape[0]
+            * image.shape[1]
+        )
+        overlays = []
+
+        def contains(
+            outer: tuple[int, int, int, int],
+            inner: tuple[int, int, int, int],
+        ) -> bool:
+            outer_x, outer_y, outer_width, outer_height = outer
+            inner_x, inner_y, inner_width, inner_height = inner
+            return (
+                outer_x <= inner_x
+                and outer_y <= inner_y
+                and outer_x + outer_width >= inner_x + inner_width
+                and outer_y + outer_height >= inner_y + inner_height
+            )
+
+        if color_rectangles is None:
+            color_rectangles = self._detect_color_rectangles(image)
+        for proposal in color_rectangles:
+            proposal_x, proposal_y, proposal_width, proposal_height = proposal
+            if proposal_width * proposal_height > maximum_area:
+                continue
+            for leaf in leaves:
+                leaf_x, leaf_y, leaf_width, leaf_height = leaf
+                intersection_width = max(
+                    0,
+                    min(proposal_x + proposal_width, leaf_x + leaf_width)
+                    - max(proposal_x, leaf_x),
+                )
+                intersection_height = max(
+                    0,
+                    min(proposal_y + proposal_height, leaf_y + leaf_height)
+                    - max(proposal_y, leaf_y),
+                )
+                if (
+                    intersection_width > 0
+                    and intersection_height > 0
+                    and not contains(proposal, leaf)
+                    and not contains(leaf, proposal)
+                ):
+                    overlays.append(proposal)
+                    break
+        return overlays
+
+    def _detect_rectangle_shapes(
+        self,
+        image: "Array",
+        proposals: list[tuple[int, int, int, int]] | None = None,
+        color_rectangles: list[tuple[int, int, int, int]] | None = None,
+    ) -> list[tuple[int, int, int, int]]:
+        """Detect atomic rectangular OCR regions, including small overlays."""
+        if color_rectangles is None:
+            color_rectangles = self._detect_color_rectangles(image)
+        if proposals is None:
+            proposals = self._detect_rectangle_proposals(image, color_rectangles)
+        leaves = self._partition_atomic_regions(image, proposals)
+        overlays = self._detect_crossing_color_overlays(image, leaves, color_rectangles)
+        return self._remove_duplicate_rectangles(
+            leaves + overlays, iou_threshold=0.80, edge_tolerance=4
+        )
+
+    def _detect_text_regions(
+        self, haystack: "Image"
+    ) -> list[tuple[int, int, int, int]]:
+        """Detect OCR inputs from atomic rectangular GUI regions."""
+        import cv2
+        import numpy
+
+        image = numpy.array(haystack.pil_image)
+        proposal_canvas = image.copy()
+        region_canvas = image.copy()
+        color_rectangles = self._detect_color_rectangles(image)
+        proposals = self._detect_rectangle_proposals(image, color_rectangles)
+        regions = self._detect_rectangle_shapes(image, proposals, color_rectangles)
+
+        for x, y, width, height in proposals:
+            cv2.rectangle(
+                proposal_canvas,
+                (x, y),
+                (x + width - 1, y + height - 1),
+                (255, 0, 0),
+                1,
+            )
+        for x, y, width, height in regions:
+            cv2.rectangle(
+                region_canvas,
+                (x, y),
+                (x + width - 1, y + height - 1),
+                (0, 255, 0),
+                1,
+            )
+
+        log.debug(
+            "Reduced %s rectangle proposals to %s atomic OCR regions",
+            len(proposals),
+            len(regions),
+        )
+        self.imglog.hotmaps.append(proposal_canvas)
+        self.imglog.hotmaps.append(region_canvas)
+        return regions
 
     def log(self, lvl: int) -> None:
         """

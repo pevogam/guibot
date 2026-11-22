@@ -474,7 +474,7 @@ class GlobalConfig(type):
         :param value: name of the text detection backend
         :returns: current value if no argument was passed otherwise None
 
-        Supported backends: east, erstat, contours, components.
+        Supported backends: pytesseract, regions, east, erstat, contours, components.
         """
         if value is None:
             return cls._text_detect_backend
